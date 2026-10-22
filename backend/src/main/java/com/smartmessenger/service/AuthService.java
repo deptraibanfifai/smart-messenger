@@ -3,7 +3,7 @@ package com.smartmessenger.service;
 import com.smartmessenger.dto.AuthResponse;
 import com.smartmessenger.dto.LoginRequest;
 import com.smartmessenger.dto.RegisterRequest;
-import com.smartmessenger.model.Role;
+import com.smartmessenger.dto.VerifyEmailRequest;
 import com.smartmessenger.model.User;
 import com.smartmessenger.model.UserStatus;
 import com.smartmessenger.repository.UserRepository;
@@ -15,44 +15,36 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import java.util.Locale;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class AuthService {
 
     private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtUtils jwtUtils;
+    private final RegistrationService registrationService;
+    private final GoogleAuthService googleAuthService;
 
-    @Transactional
-    public AuthResponse register(RegisterRequest request) {
-        if (userRepository.existsByUsername(request.getUsername())) {
-            throw new IllegalArgumentException("Tên đăng nhập '" + request.getUsername() + "' đã được sử dụng!");
-        }
+    public void register(RegisterRequest request) {
+        registrationService.requestCode(request);
+    }
 
-        User user = User.builder()
-                .username(request.getUsername().trim().toLowerCase())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .fullName(request.getFullName().trim())
-                .role(Role.ROLE_USER)
-                .status(UserStatus.ACTIVE)
-                .build();
+    public AuthResponse verifyEmail(VerifyEmailRequest request) {
+        return tokenFor(registrationService.verify(request));
+    }
 
-        userRepository.save(user);
-
-        // Tự động đăng nhập sau khi đăng ký
-        return login(new LoginRequest() {{
-            setUsername(request.getUsername());
-            setPassword(request.getPassword());
-        }});
+    public AuthResponse googleLogin(String credential) {
+        return tokenFor(googleAuthService.authenticate(credential));
     }
 
     public AuthResponse login(LoginRequest request) {
-        User user = userRepository.findByUsername(request.getUsername().trim().toLowerCase())
+        String identifier = request.getUsername().trim().toLowerCase(Locale.ROOT);
+        User user = userRepository.findByUsername(identifier)
+                .or(() -> identifier.contains("@") ? userRepository.findByEmail(identifier) : Optional.empty())
                 .orElseThrow(() -> new BadCredentialsException("Sai tài khoản hoặc mật khẩu"));
 
         if (user.getStatus() == UserStatus.BANNED) {
@@ -60,9 +52,19 @@ public class AuthService {
         }
 
         Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getUsername().trim().toLowerCase(), request.getPassword())
+                new UsernamePasswordAuthenticationToken(user.getUsername(), request.getPassword())
         );
 
+        return responseFor(authentication, user);
+    }
+
+    private AuthResponse tokenFor(User user) {
+        UserDetailsImpl principal = UserDetailsImpl.build(user);
+        Authentication auth = new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
+        return responseFor(auth, user);
+    }
+
+    private AuthResponse responseFor(Authentication authentication, User user) {
         SecurityContextHolder.getContext().setAuthentication(authentication);
         String jwt = jwtUtils.generateJwtToken(authentication);
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();

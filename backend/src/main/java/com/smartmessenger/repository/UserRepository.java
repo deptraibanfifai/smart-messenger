@@ -14,6 +14,9 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByUsername(String username);
     Boolean existsByUsername(String username);
+    Optional<User> findByEmail(String email);
+    Optional<User> findByGoogleSub(String googleSub);
+    boolean existsByEmail(String email);
 
     @Query("SELECT u FROM User u WHERE (LOWER(u.username) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))) AND u.status = 'ACTIVE'")
     List<User> searchUsers(@Param("keyword") String keyword);

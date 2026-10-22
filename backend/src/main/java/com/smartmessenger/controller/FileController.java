@@ -31,9 +31,10 @@ public class FileController {
     public ChatMessageDto upload(@PathVariable Long conversationId, @RequestParam("file") MultipartFile file,
                                  @AuthenticationPrincipal UserDetailsImpl principal) throws IOException {
         chatService.requireMember(conversationId, principal.getId());
-        if (file.isEmpty() || file.getSize() > 10 * 1024 * 1024 || !TYPES.contains(file.getContentType()))
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tệp phải là PNG/JPEG/WebP/PDF/TXT, tối đa 10 MB");
-        String extension = switch (file.getContentType()) {
+        String contentType = file.getContentType();
+        if (file.isEmpty() || file.getSize() > 20L * 1024 * 1024 || contentType == null || !TYPES.contains(contentType))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tệp phải là PNG/JPEG/WebP/PDF/TXT, tối đa 20 MB");
+        String extension = switch (contentType) {
             case "image/png" -> ".png";
             case "image/jpeg" -> ".jpg";
             case "image/webp" -> ".webp";
@@ -48,7 +49,7 @@ public class FileController {
         try {
             return chatService.saveAndBroadcastMessage(conversationId, principal.getId(),
                     "/api/files/" + conversationId + "/" + id,
-                    file.getContentType().startsWith("image/") ? MessageType.IMAGE : MessageType.FILE);
+                    contentType.startsWith("image/") ? MessageType.IMAGE : MessageType.FILE);
         } catch (RuntimeException e) {
             Files.deleteIfExists(path);
             throw e;
@@ -63,8 +64,9 @@ public class FileController {
         Path path = Path.of(uploadDir).toAbsolutePath().normalize().resolve(conversationId.toString()).resolve(fileId);
         if (!Files.isRegularFile(path)) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         String mime = Files.probeContentType(path);
+        boolean image = fileId.endsWith(".png") || fileId.endsWith(".jpg") || fileId.endsWith(".webp");
         return ResponseEntity.ok().contentType(MediaType.parseMediaType(mime == null ? "application/octet-stream" : mime))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileId + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, (image ? "inline" : "attachment") + "; filename=\"" + fileId + "\"")
                 .body(new UrlResource(path.toUri()));
     }
 }

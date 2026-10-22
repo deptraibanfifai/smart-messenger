@@ -12,6 +12,8 @@ USE smart_messenger_db;
 CREATE TABLE IF NOT EXISTS users (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     username VARCHAR(50) UNIQUE NOT NULL,
+    email VARCHAR(254) UNIQUE NULL,
+    google_sub VARCHAR(255) UNIQUE NULL,
     password VARCHAR(255) NOT NULL, -- BCrypt hashed
     full_name VARCHAR(100) NOT NULL,
     avatar_url VARCHAR(500) DEFAULT 'https://api.dicebear.com/7.x/bottts/svg?seed=messenger',
@@ -21,12 +23,25 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
+-- Mã xác minh email; ba tài khoản mẫu không bị thay đổi.
+CREATE TABLE IF NOT EXISTS pending_registrations (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    email VARCHAR(254) UNIQUE NOT NULL,
+    username VARCHAR(50) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    full_name VARCHAR(100) NOT NULL,
+    code_hash VARCHAR(255) NOT NULL,
+    attempts INT NOT NULL DEFAULT 0,
+    sent_at TIMESTAMP NOT NULL,
+    expires_at TIMESTAMP NOT NULL
+);
+
 -- 2. BẢNG CONVERSATIONS (Cuộc trò chuyện 1-1 hoặc Nhóm)
 CREATE TABLE IF NOT EXISTS conversations (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     type ENUM('DIRECT', 'GROUP') NOT NULL,
     title VARCHAR(100),                         -- Tên nhóm (NULL đối với chat 1-1)
-    theme_color VARCHAR(20) DEFAULT '#0284c7',  -- Mã HEX màu nền/theme (Mặc định Xanh Sky)
+    theme_color VARCHAR(20) DEFAULT '#0284c7',  -- Một mã HEX hoặc hai mã HEX phân tách bằng dấu phẩy
     created_by BIGINT,                          -- User ID người tạo
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
@@ -51,7 +66,7 @@ CREATE TABLE IF NOT EXISTS messages (
     sender_id BIGINT,
     -- NULL nếu là AI hoặc Thông báo hệ thống
     content TEXT NOT NULL,
-    message_type ENUM('TEXT', 'SYSTEM', 'AI') DEFAULT 'TEXT',
+    message_type ENUM('TEXT', 'SYSTEM', 'AI', 'IMAGE', 'FILE') DEFAULT 'TEXT',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
     FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE SET NULL,

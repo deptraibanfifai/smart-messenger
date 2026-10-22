@@ -2,6 +2,7 @@ package com.smartmessenger.controller;
 
 import com.smartmessenger.dto.UserDto;
 import com.smartmessenger.security.UserDetailsImpl;
+import com.smartmessenger.service.PresenceService;
 import com.smartmessenger.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/users")
@@ -17,6 +19,12 @@ import java.util.Map;
 public class UserController {
 
     private final UserService userService;
+    private final PresenceService presenceService;
+
+    @GetMapping("/online")
+    public ResponseEntity<Set<Long>> online() {
+        return ResponseEntity.ok(presenceService.getOnlineUserIds());
+    }
 
     @GetMapping("/me")
     public ResponseEntity<UserDto> getMe(@AuthenticationPrincipal UserDetailsImpl userDetails) {

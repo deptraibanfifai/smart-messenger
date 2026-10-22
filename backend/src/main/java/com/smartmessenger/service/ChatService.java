@@ -176,6 +176,9 @@ public class ChatService {
     @Transactional
     public void updateConversationTheme(Long conversationId, Long actor, String themeColor) {
         requireMember(conversationId, actor);
+        if (themeColor == null || !themeColor.matches("(?i)#[0-9a-f]{6}(,#[0-9a-f]{6})?")) {
+            throw new IllegalArgumentException("Màu đoạn chat không hợp lệ");
+        }
         Conversation conversation = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> new IllegalArgumentException("Conversation not found: " + conversationId));
         conversation.setThemeColor(themeColor);

@@ -32,4 +32,22 @@ public class ApiErrors {
     public ResponseEntity<Map<String, String>> invalid(IllegalArgumentException e) {
         return ResponseEntity.badRequest().body(Map.of("message", e.getMessage() == null ? "Dữ liệu không hợp lệ" : e.getMessage()));
     }
+
+    @ExceptionHandler(org.springframework.mail.MailException.class)
+    public ResponseEntity<Map<String, String>> mail(org.springframework.mail.MailException e) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(Map.of("message", "Không gửi được email xác minh. Vui lòng thử lại sau."));
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<Map<String, String>> configuration(IllegalStateException e) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(Map.of("message", e.getMessage() == null ? "Dịch vụ chưa sẵn sàng" : e.getMessage()));
+    }
+
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, String>> fileTooLarge() {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(Map.of("message", "Tệp vượt quá giới hạn 20 MB"));
+    }
 }

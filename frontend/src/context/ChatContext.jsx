@@ -46,7 +46,17 @@ export const ChatProvider = ({ children }) => {
       });
     });
 
+    let active = true;
+    const offConnection = wsService.onConnectionChange((connected) => {
+      if (!connected) { setOnlineUserIds(new Set()); return; }
+      api.get('/users/online').then(({ data }) => {
+        if (active) setOnlineUserIds(new Set(data));
+      }).catch((error) => console.error('Không tải được trạng thái trực tuyến:', error));
+    });
+
     return () => {
+      active = false;
+      offConnection();
       if (sub) sub.unsubscribe();
     };
   }, [user, fetchConversations]);
@@ -102,7 +112,7 @@ export const ChatProvider = ({ children }) => {
     if (!activeConversation) return;
     const form = new FormData();
     form.append('file', file);
-    return api.post(`/files/${activeConversation.id}`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+    return api.post(`/files/${activeConversation.id}`, form, { headers: { 'Content-Type': undefined } });
   };
 
   const editMessage = (id, content) => api.put(`/messages/${id}`, { content });
@@ -133,6 +143,7 @@ export const ChatProvider = ({ children }) => {
       );
     } catch (err) {
       console.error('Lỗi khi đổi màu theme:', err);
+      throw err;
     }
   };
 

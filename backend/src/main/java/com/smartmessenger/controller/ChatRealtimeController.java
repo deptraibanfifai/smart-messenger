@@ -46,8 +46,9 @@ public class ChatRealtimeController {
     @EventListener
     public void handleWebSocketConnectListener(SessionConnectedEvent event) {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
-        // Lấy thông tin user nếu có
-        System.out.println("🟢 [WEBSOCKET CONNECTED] Session ID: " + headerAccessor.getSessionId());
+        if (event.getUser() == null || headerAccessor.getSessionId() == null) return;
+        var user = userRepository.findByUsername(event.getUser().getName()).orElseThrow();
+        presenceService.sessionConnected(headerAccessor.getSessionId(), user.getId(), user.getUsername());
     }
 
     /**
@@ -55,25 +56,7 @@ public class ChatRealtimeController {
      */
     @EventListener
     public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
-        StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
-        System.out.println("🔴 [WEBSOCKET DISCONNECTED] Session ID: " + headerAccessor.getSessionId());
+        presenceService.sessionDisconnected(event.getSessionId());
     }
 
-    /**
-     * Client báo danh Online qua WebSocket: /app/presence.online
-     */
-    @MessageMapping("/presence.online")
-    public void userOnline(Principal principal) {
-        var user = userRepository.findByUsername(principal.getName()).orElseThrow();
-        presenceService.userConnected(user.getId(), user.getUsername());
-    }
-
-    /**
-     * Client báo danh Offline qua WebSocket: /app/presence.offline
-     */
-    @MessageMapping("/presence.offline")
-    public void userOffline(Principal principal) {
-        var user = userRepository.findByUsername(principal.getName()).orElseThrow();
-        presenceService.userDisconnected(user.getId(), user.getUsername());
-    }
 }

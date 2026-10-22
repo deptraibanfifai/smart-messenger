@@ -12,6 +12,16 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(() => localStorage.getItem('smart_messenger_token') || null);
   const [loading, setLoading] = useState(false);
 
+  const saveSession = (data) => {
+    setToken(data.token);
+    setUser(data);
+    localStorage.setItem('smart_messenger_token', data.token);
+    localStorage.setItem('smart_messenger_user', JSON.stringify(data));
+    return { success: true, user: data };
+  };
+
+  const errorMessage = (error, fallback) => error.response?.data?.message || fallback;
+
   useEffect(() => {
     if (user && token && user.role !== 'ROLE_ADMIN') {
       wsService.connect(user);
@@ -28,12 +38,8 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await api.post('/auth/login', { username, password });
       const data = response.data;
-      setToken(data.token);
-      setUser(data);
-      localStorage.setItem('smart_messenger_token', data.token);
-      localStorage.setItem('smart_messenger_user', JSON.stringify(data));
-      return { success: true, user: data };
-        } catch (error) {
+      return saveSession(data);
+    } catch (error) {
       let errorMsg = 'Đăng nhập thất bại. Kiểm tra lại thông tin.';
       if (typeof error.response?.data === 'string') {
         errorMsg = error.response.data;
@@ -46,21 +52,16 @@ export const AuthProvider = ({ children }) => {
         success: false,
         message: errorMsg,
       };
-    }finally {
+    } finally {
       setLoading(false);
     }
   };
 
-  const register = async (username, password, fullName) => {
+  const register = async (username, password, fullName, email) => {
     setLoading(true);
     try {
-      const response = await api.post('/auth/register', { username, password, fullName });
-      const data = response.data;
-      setToken(data.token);
-      setUser(data);
-      localStorage.setItem('smart_messenger_token', data.token);
-      localStorage.setItem('smart_messenger_user', JSON.stringify(data));
-      return { success: true, user: data };
+      await api.post('/auth/register', { username, password, fullName, email });
+      return { success: true };
     } catch (error) {
       return {
         success: false,
@@ -69,6 +70,26 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const verifyEmail = async (email, code) => {
+    setLoading(true);
+    try {
+      const { data } = await api.post('/auth/register/verify', { email, code });
+      return saveSession(data);
+    } catch (error) {
+      return { success: false, message: errorMessage(error, 'Không xác minh được email.') };
+    } finally { setLoading(false); }
+  };
+
+  const googleLogin = async (credential) => {
+    setLoading(true);
+    try {
+      const { data } = await api.post('/auth/google', { credential });
+      return saveSession(data);
+    } catch (error) {
+      return { success: false, message: errorMessage(error, 'Đăng nhập Google thất bại.') };
+    } finally { setLoading(false); }
   };
 
   const logout = () => {
@@ -92,7 +113,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, isAdmin, refreshProfile }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, verifyEmail, googleLogin, logout, isAdmin, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

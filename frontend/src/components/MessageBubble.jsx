@@ -1,20 +1,27 @@
 import React, { useEffect, useState } from 'react';
 import { Bot } from 'lucide-react';
 import api from '../services/api';
+import { getChatTheme } from '../utils/chatTheme';
 
 export default function MessageBubble({ message, isMine, themeColor, onEdit, onDelete }) {
   const [fileUrl, setFileUrl] = useState(null);
+  const [fileError, setFileError] = useState(false);
   useEffect(() => {
+    setFileUrl(null);
+    setFileError(false);
     if (message.deleted || !['IMAGE', 'FILE'].includes(message.messageType)) return;
     let url;
+    let cancelled = false;
     api.get(message.content.replace(/^\/api/, ''), { responseType: 'blob' }).then(({ data }) => {
       url = URL.createObjectURL(data);
-      setFileUrl(url);
-    }).catch(() => setFileUrl(null));
-    return () => { if (url) URL.revokeObjectURL(url); };
+      if (cancelled) URL.revokeObjectURL(url);
+      else setFileUrl(url);
+    }).catch(() => { if (!cancelled) setFileError(true); });
+    return () => { cancelled = true; if (url) URL.revokeObjectURL(url); };
   }, [message.content, message.deleted, message.messageType]);
   const isAi = message.messageType === 'AI';
   const isSystem = message.messageType === 'SYSTEM';
+  const chatTheme = getChatTheme(themeColor);
 
   if (isSystem) {
     return (
@@ -60,14 +67,20 @@ export default function MessageBubble({ message, isMine, themeColor, onEdit, onD
 
         <div
           style={{
-            backgroundColor: isMine ? themeColor : '#ffffff',
-            color: isMine ? '#ffffff' : '#1e293b',
+            background: isMine ? chatTheme.background : '#ffffff',
+            color: isMine ? chatTheme.text : '#1e293b',
           }}
           className={`px-3.5 py-2 rounded-2xl text-xs leading-relaxed shadow-sm break-words whitespace-pre-wrap ${
             isMine ? 'rounded-br-sm' : 'rounded-bl-sm border border-slate-100'
           }`}
         >
-          {message.content}
+          {message.deleted ? 'Tin nhắn đã bị xóa' : message.messageType === 'IMAGE'
+            ? (fileUrl ? <a href={fileUrl} download="image"><img src={fileUrl} alt="Ảnh đính kèm" className="max-w-full max-h-80 rounded-lg" /></a>
+              : fileError ? 'Không tải được ảnh đính kèm' : 'Đang tải ảnh...')
+            : message.messageType === 'FILE'
+              ? (fileUrl ? <a href={fileUrl} download="attachment" className="underline">Tải tệp đính kèm</a>
+                : fileError ? 'Không tải được tệp đính kèm' : 'Đang tải tệp...')
+              : message.content}
         </div>
 
         <p className={`text-[9px] text-slate-400 px-1 ${isMine ? 'text-right' : 'text-left'}`}>

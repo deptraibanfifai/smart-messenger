@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { MessageSquare, Lock, User, AlertCircle, ArrowRight } from 'lucide-react';
+import GoogleSignIn from '../components/GoogleSignIn';
+import './AuthGlass.css';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const { login, loading } = useAuth();
+  const { login, googleLogin, loading } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -31,9 +33,16 @@ export default function LoginPage() {
     setPassword(p);
   };
 
+  const handleGoogle = async (credential) => {
+    setError('');
+    const res = await googleLogin(credential);
+    if (res.success) navigate(res.user?.role === 'ROLE_ADMIN' ? '/admin' : '/', { replace: true });
+    else setError(res.message);
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-sky-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="bg-white/80 backdrop-blur-xl border border-white/60 p-8 rounded-3xl shadow-2xl max-w-md w-full">
+    <div className="auth-scene">
+      <div className="auth-glass">
         {/* Header */}
         <div className="text-center mb-6">
           <div className="w-14 h-14 bg-gradient-to-tr from-sky-500 to-indigo-600 rounded-2xl flex items-center justify-center text-white mx-auto mb-3 shadow-lg shadow-sky-500/30">
@@ -54,12 +63,12 @@ export default function LoginPage() {
         {/* Login Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1">Tên đăng nhập</label>
+            <label className="text-xs font-semibold text-slate-700 block mb-1">Email hoặc tên đăng nhập</label>
             <div className="relative">
               <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
               <input
                 type="text"
-                placeholder="Nhập username..."
+                placeholder="Email hoặc username..."
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-sky-500 focus:bg-white outline-none transition"
@@ -90,6 +99,9 @@ export default function LoginPage() {
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
+
+        
+        <div className="mt-3"><GoogleSignIn onCredential={handleGoogle} disabled={loading} /></div>
 
         {/* Demo Fast Account Quick Buttons */}
         <div className="mt-6 pt-4 border-t border-slate-100">

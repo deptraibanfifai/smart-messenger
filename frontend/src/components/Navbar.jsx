@@ -15,7 +15,7 @@ export default function Navbar({ onOpenAiChat }) {
   };
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 px-4 flex items-center justify-between z-10 shrink-0">
+    <header className="chat-navbar h-16 px-4 flex items-center justify-between z-10 shrink-0">
       <div className="flex items-center space-x-3">
         <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-sky-500/20">
           <MessageSquare className="w-5 h-5" />

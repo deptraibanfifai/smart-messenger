@@ -6,16 +6,18 @@ class WebSocketService {
     this.connected = false;
     this.subscriptions = new Map();
     this.listeners = new Map();
+    this.connectionListeners = new Set();
   }
 
   connect(user, onConnectCallback, onErrorCallback) {
-    if (this.client && this.connected) {
+    if (this.client?.active) {
       return;
     }
 
     const token = localStorage.getItem('smart_messenger_token');
 
-    this.client = new Client({
+    let currentClient;
+    currentClient = new Client({
       brokerURL: `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws-native`,
       connectHeaders: {
         Authorization: `Bearer ${token}`,
@@ -27,17 +29,12 @@ class WebSocketService {
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
       onConnect: () => {
+        if (this.client !== currentClient) return;
         this.connected = true;
+        this.subscriptions.clear();
         for (const [topic, handler] of this.listeners) this.subscribe(topic, handler);
         console.log('🟢 [STOMP CONNECTED] Thành công kết nối WebSocket!');
-
-        // Báo danh user online
-        if (user && user.id) {
-          this.client.publish({
-            destination: '/app/presence.online',
-            body: JSON.stringify({ userId: user.id, username: user.username }),
-          });
-        }
+        for (const listener of this.connectionListeners) listener(true);
 
         if (onConnectCallback) onConnectCallback();
       },
@@ -46,12 +43,16 @@ class WebSocketService {
         if (onErrorCallback) onErrorCallback(frame);
       },
       onWebSocketClose: () => {
+        if (this.client !== currentClient) return;
         this.connected = false;
+        this.subscriptions.clear();
+        for (const listener of this.connectionListeners) listener(false);
         console.log('🟡 [STOMP DISCONNECTED] Kết nối WebSocket bị đóng');
       },
     });
 
-    this.client.activate();
+    this.client = currentClient;
+    currentClient.activate();
   }
 
   subscribeToConversation(conversationId, onMessageReceived) {
@@ -80,6 +81,12 @@ class WebSocketService {
     return this.subscribe(topic, onPresenceReceived);
   }
 
+  onConnectionChange(listener) {
+    this.connectionListeners.add(listener);
+    if (this.connected) listener(true);
+    return () => this.connectionListeners.delete(listener);
+  }
+
   sendMessage(conversationId, senderId, content, messageType = 'TEXT') {
     if (!this.client || !this.connected) {
       console.error('Không thể gửi tin: WebSocket chưa kết nối');
@@ -97,23 +104,14 @@ class WebSocketService {
     return true;
   }
 
-  disconnect(user) {
-    if (this.client && this.connected) {
-      if (user && user.id) {
-        try {
-          this.client.publish({
-            destination: '/app/presence.offline',
-            body: JSON.stringify({ userId: user.id, username: user.username }),
-          });
-        } catch (e) {
-          // ignore
-        }
-      }
+  disconnect() {
+    if (this.client) {
       this.client.deactivate();
+      this.client = null;
       this.connected = false;
+      for (const listener of this.connectionListeners) listener(false);
     }
     this.subscriptions.clear();
-    this.listeners.clear();
   }
 }
 

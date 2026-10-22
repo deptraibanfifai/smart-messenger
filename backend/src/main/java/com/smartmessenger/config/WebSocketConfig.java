@@ -70,8 +70,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                                 if (!members.existsByConversationIdAndUserId(id, user.getId())) throw new NumberFormatException();
                             } catch (NumberFormatException ex) { throw new ResponseStatusException(HttpStatus.FORBIDDEN); }
                         } else if (!destination.equals("/topic/presence")) throw new ResponseStatusException(HttpStatus.FORBIDDEN);
-                    } else if (!destination.equals("/app/chat.sendMessage") && !destination.equals("/app/presence.online")
-                            && !destination.equals("/app/presence.offline")) throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+                    } else if (!destination.equals("/app/chat.sendMessage")) throw new ResponseStatusException(HttpStatus.FORBIDDEN);
                 }
                 return message;
             }
