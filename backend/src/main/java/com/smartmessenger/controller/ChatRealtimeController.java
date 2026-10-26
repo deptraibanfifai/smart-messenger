@@ -16,6 +16,7 @@ import org.springframework.web.socket.messaging.SessionConnectedEvent;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
 import java.util.Map;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 @Controller
 @RequiredArgsConstructor
@@ -24,6 +25,7 @@ public class ChatRealtimeController {
     private final ChatService chatService;
     private final PresenceService presenceService;
     private final UserRepository userRepository;
+    private final SimpMessagingTemplate messagingTemplate;
 
     /**
      * Nhận tin nhắn từ Client qua WebSocket: /app/chat.sendMessage
@@ -37,7 +39,19 @@ public class ChatRealtimeController {
         String typeStr = (String) payload.getOrDefault("messageType", "TEXT");
         MessageType type = MessageType.valueOf(typeStr);
 
-        chatService.saveAndBroadcastMessage(conversationId, senderId, content, type);
+        Long replyToId = payload.get("replyToId") == null ? null : Long.valueOf(payload.get("replyToId").toString());
+
+        chatService.saveAndBroadcastMessage(conversationId, senderId, content, type, replyToId);
+    }
+
+    @MessageMapping("/chat.typing")
+    public void typing(@Payload Map<String, Object> payload, Principal principal) {
+        Long conversationId = Long.valueOf(payload.get("conversationId").toString());
+        var user = userRepository.findByUsername(principal.getName()).orElseThrow();
+        chatService.requireMember(conversationId, user.getId());
+        messagingTemplate.convertAndSend("/topic/typing/" + conversationId,
+                Map.of("conversationId", conversationId, "userId", user.getId(), "name", user.getFullName() == null ? user.getUsername() : user.getFullName(),
+                        "typing", Boolean.TRUE.equals(payload.get("typing"))));
     }
 
     /**

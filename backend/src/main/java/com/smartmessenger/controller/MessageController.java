@@ -44,6 +44,18 @@ public class MessageController {
         return chatService.deleteMessage(id, principal.getId());
     }
 
+    @PutMapping("/{id}/reaction")
+    public ChatMessageDto react(@PathVariable Long id, @RequestBody Map<String, String> body,
+                                @AuthenticationPrincipal UserDetailsImpl principal) {
+        return chatService.react(id, principal.getId(), body.get("emoji"));
+    }
+
+    @DeleteMapping("/{id}/reaction")
+    public ChatMessageDto removeReaction(@PathVariable Long id,
+                                         @AuthenticationPrincipal UserDetailsImpl principal) {
+        return chatService.removeReaction(id, principal.getId());
+    }
+
     @PutMapping("/read/{conversationId}")
     public ResponseEntity<Void> read(@PathVariable Long conversationId, @AuthenticationPrincipal UserDetailsImpl principal) {
         chatService.markRead(conversationId, principal.getId());

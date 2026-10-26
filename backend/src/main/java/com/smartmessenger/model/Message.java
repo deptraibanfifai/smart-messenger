@@ -50,6 +50,10 @@ public class Message {
     @Column(name = "read_at")
     private LocalDateTime readAt;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "reply_to_id")
+    private Message replyTo;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

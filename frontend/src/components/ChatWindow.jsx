@@ -1,8 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useChat } from '../context/ChatContext';
 import { useAuth } from '../context/AuthContext';
 import MessageBubble from './MessageBubble';
 import GroupSettings from './GroupSettings';
+import ContactProfileModal from './ContactProfileModal';
+import { createTypingNotifier } from '../utils/typingNotifier';
 import api from '../services/api';
 import ThemePicker from './ThemePicker';
 import { getChatTheme } from '../utils/chatTheme';
@@ -11,15 +13,18 @@ import { Send, Palette, Sparkles, Users, Info, Paperclip, Search, X, ChevronDown
 
 export default function ChatWindow({ onOpenAiSummary }) {
   const { user } = useAuth();
-  const { activeConversation, messages, loadingMessages, sendMessage, onlineUserIds, uploadFile, editMessage, deleteMessage } = useChat();
+  const { activeConversation, messages, loadingMessages, sendMessage, sendTyping, typingUsers, reactMessage, onlineUserIds, uploadFile, editMessage, deleteMessage } = useChat();
   const [inputText, setInputText] = useState('');
+  const [replyTo, setReplyTo] = useState(null);
+  const [contactOpen, setContactOpen] = useState(false);
+  const typingNotifier = useMemo(() => createTypingNotifier(typing => sendTyping(typing, activeConversation?.id)), [activeConversation?.id, sendTyping]);
   const [showThemePicker, setShowThemePicker] = useState(false);
   const [showGroupSettings, setShowGroupSettings] = useState(false);
   const [search, setSearch] = useState('');
   const [searchResults, setSearchResults] = useState(null);
   const [infoOpen, setInfoOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [sectionOpen, setSectionOpen] = useState({ settings: true, media: false });
+  const [sectionOpen, setSectionOpen] = useState({ settings: true, media: true });
   const [error, setError] = useState('');
   const [wallpaperUrl, setWallpaperUrl] = useState(null);
   const fileRef = useRef(null);
@@ -41,7 +46,16 @@ export default function ChatWindow({ onOpenAiSummary }) {
     setSearchOpen(false);
     setInfoOpen(false);
     setError('');
+    setContactOpen(false);
+    setReplyTo(null);
+    setInputText('');
   }, [activeConversation?.id]);
+
+  useEffect(() => {
+    const onHidden = () => { if (document.visibilityState !== 'visible') typingNotifier.stop(); };
+    document.addEventListener('visibilitychange', onHidden);
+    return () => { typingNotifier.stop(); document.removeEventListener('visibilitychange', onHidden); };
+  }, [typingNotifier]);
 
   useEffect(() => {
     if (searchOpen) searchRef.current?.focus();
@@ -83,8 +97,16 @@ export default function ChatWindow({ onOpenAiSummary }) {
   const handleSend = (e) => {
     e.preventDefault();
     if (!inputText.trim()) return;
-    sendMessage(inputText);
-    setInputText('');
+    if (sendMessage(inputText, 'TEXT', replyTo?.id)) {
+      setInputText('');
+      setReplyTo(null);
+      typingNotifier.stop();
+    } else setError('Chưa kết nối máy chủ. Vui lòng thử lại.');
+  };
+
+  const handleTextChange = (event) => {
+    setInputText(event.target.value);
+    typingNotifier.change(event.target.value);
   };
 
   const getHeaderTitle = () => {
@@ -175,7 +197,7 @@ export default function ChatWindow({ onOpenAiSummary }) {
       {/* Chat Header */}
       <div className="chat-header px-5 flex items-center justify-between shrink-0">
         <div className="flex items-center space-x-3">
-          <div className="relative">
+          <button type="button" className="relative chat-contact-avatar" onClick={() => activeConversation.type === 'DIRECT' ? setContactOpen(true) : setInfoOpen(true)} aria-label="Xem thông tin người đang trò chuyện">
             <img
               src={avatar}
               alt=""
@@ -184,7 +206,7 @@ export default function ChatWindow({ onOpenAiSummary }) {
             {activeConversation.type === 'DIRECT' && isOnline() && (
               <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></span>
             )}
-          </div>
+          </button>
           <div>
             <h2 className="text-sm font-bold text-slate-800 leading-tight">{getHeaderTitle()}</h2>
             <p className="text-[11px] text-slate-400">
@@ -247,7 +269,11 @@ export default function ChatWindow({ onOpenAiSummary }) {
               key={msg.id}
               message={msg}
               isMine={msg.senderId === user?.id}
+              showSender={activeConversation.type === 'GROUP'}
               themeColor={themeColor}
+              currentUserId={user?.id}
+              onReply={() => { setReplyTo(msg); setSearchOpen(false); }}
+              onReact={async (emoji) => { try { await reactMessage(msg.id, emoji); } catch { setError('Không thể thả cảm xúc.'); } }}
               onEdit={async content => { try { await editMessage(msg.id, content); } catch (e) { setError('Không sửa được tin nhắn'); } }}
               onDelete={async () => { try { await deleteMessage(msg.id); } catch (e) { setError('Không xóa được tin nhắn'); } }}
             />
@@ -258,20 +284,23 @@ export default function ChatWindow({ onOpenAiSummary }) {
 
       {/* Message Input Box */}
       <div className="chat-composer p-3 shrink-0">
+        <div className="chat-typing-slot" aria-live="polite" aria-atomic="true">{Object.keys(typingUsers).length > 0 && <div className="chat-typing"><span className="chat-typing-dots" aria-hidden="true"><i /><i /><i /></span><span>{Object.values(typingUsers).map(entry => entry.name).join(', ')} đang nhập...</span></div>}</div>
+        {replyTo && <div className="chat-reply-draft"><span>Trả lời {replyTo.senderName}: {replyTo.deleted ? 'Tin nhắn đã xóa' : replyTo.messageType === 'TEXT' ? replyTo.content : 'Ảnh hoặc tệp'}</span><button type="button" onClick={() => setReplyTo(null)} aria-label="Bỏ trả lời"><X size={15} /></button></div>}
         <form onSubmit={handleSend} className="flex items-center space-x-2">
           <input ref={fileRef} type="file" className="hidden" accept="image/png,image/jpeg,image/webp,application/pdf,text/plain" onChange={handleFile} />
-          <button type="button" className="chat-icon-button" title="Gửi ảnh hoặc tệp" aria-label="Gửi ảnh hoặc tệp" onClick={() => fileRef.current?.click()}><Paperclip className="w-5 h-5" /></button>
+          <button type="button" className="chat-icon-button chat-attach-button" title="Gửi ảnh hoặc tệp" aria-label="Gửi ảnh hoặc tệp" onClick={() => fileRef.current?.click()}><Paperclip className="w-5 h-5" /></button>
           <input
             type="text"
             placeholder="Nhập tin nhắn..."
             value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
+            onChange={handleTextChange}
+            onBlur={() => typingNotifier.stop()}
             className="chat-message-input flex-1 min-w-0 px-4 py-2.5 rounded-xl text-sm outline-none transition"
           />
           <button
             type="submit"
             disabled={!inputText.trim()}
-            style={{ background: chatTheme.background, color: chatTheme.text }}
+            style={{ background: themeColor === '#0284c7' ? '#514cff' : chatTheme.background, color: themeColor === '#0284c7' ? '#fff' : chatTheme.text }}
             className="p-2.5 text-white rounded-xl hover:opacity-90 disabled:opacity-40 transition shadow-sm"
           >
             <Send className="w-4 h-4" />
@@ -315,6 +344,7 @@ export default function ChatWindow({ onOpenAiSummary }) {
           </div>
         </aside>
       </>}
+      {contactOpen && otherMember && <ContactProfileModal member={otherMember} online={isOnline()} onClose={() => setContactOpen(false)} />}
       {/* Theme Picker Modal */}
       {showThemePicker && (
         <ThemePicker

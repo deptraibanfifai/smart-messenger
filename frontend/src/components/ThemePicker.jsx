@@ -5,6 +5,7 @@ import { X, Check } from 'lucide-react';
 
 const PRESETS = [
   { name: 'Xanh mặc định', value: '#0284c7' },
+  { name: 'Tím Direct', value: '#514cff' },
   { name: 'Tím chàm', value: '#6366f1' },
   { name: 'Xanh lục', value: '#059669' },
   { name: 'Hồng đậm', value: '#e11d48' },

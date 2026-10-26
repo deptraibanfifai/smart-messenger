@@ -6,12 +6,18 @@ import { useAuth } from './AuthContext';
 const ChatContext = createContext(null);
 
 export const ChatProvider = ({ children }) => {
-  const { user } = useAuth();
+  const { user, applyProfile } = useAuth();
   const [conversations, setConversations] = useState([]);
   const [activeConversation, setActiveConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [onlineUserIds, setOnlineUserIds] = useState(new Set());
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [typingUsers, setTypingUsers] = useState({});
+  const [notes, setNotes] = useState([]);
+  const activeIdRef = React.useRef(null);
+  const conversationsRef = React.useRef([]);
+  activeIdRef.current = activeConversation?.id;
+  conversationsRef.current = conversations;
 
   // Tải danh sách conversations của user
   const fetchConversations = useCallback(async () => {
@@ -19,14 +25,13 @@ export const ChatProvider = ({ children }) => {
     try {
       const res = await api.get('/conversations');
       setConversations(res.data);
-      // Nếu chưa chọn conversation nào, chọn cái đầu tiên
-      if (!activeConversation && res.data.length > 0) {
-        setActiveConversation(res.data[0]);
-      }
+      setActiveConversation(previous => previous
+        ? res.data.find(conversation => conversation.id === previous.id) || previous
+        : res.data[0] || null);
     } catch (err) {
       console.error('Lỗi khi tải danh sách cuộc trò chuyện:', err);
     }
-  }, [user, activeConversation]);
+  }, [user?.id]);
 
   // Lắng nghe sự kiện Online/Offline
   useEffect(() => {
@@ -46,9 +51,47 @@ export const ChatProvider = ({ children }) => {
       });
     });
 
+    const messageEvents = wsService.subscribe('/user/queue/chat-events', (message) => {
+      if (message.senderId === user.id) return;
+      const conversationId = message.conversationId;
+      const visibleChat = activeIdRef.current === conversationId && document.visibilityState === 'visible';
+      setConversations((prev) => prev.map((conv) => conv.id === conversationId
+        ? { ...conv, lastMessage: message, unreadCount: visibleChat ? 0 : (conv.unreadCount || 0) + 1 }
+        : conv));
+      if (!conversationsRef.current.some((conv) => conv.id === conversationId)) fetchConversations();
+      if (!visibleChat && 'Notification' in window && Notification.permission === 'granted') {
+        const conv = conversationsRef.current.find((c) => c.id === conversationId);
+        const other = conv?.members?.find((m) => m.id !== user.id);
+        try {
+          new Notification(conv?.type === 'GROUP' ? conv.title : other?.fullName || message.senderName || 'Tin nhắn mới', {
+            body: message.messageType === 'TEXT' ? message.content.slice(0, 120) : 'Có ảnh hoặc tệp mới',
+          });
+        } catch (error) { console.debug('Trình duyệt không hiển thị được thông báo', error); }
+      }
+    });
+    const readEvents = wsService.subscribe('/user/queue/read', ({ conversationId }) => {
+      setConversations((prev) => prev.map((conv) => conv.id === conversationId
+        ? { ...conv, unreadCount: 0 } : conv));
+    });
+
+    const profileEvents = wsService.subscribe('/topic/profiles', (profile) => {
+      applyProfile(profile);
+      const updateMembers = conv => conv ? { ...conv, members: conv.members?.map(member => member.id === profile.id ? { ...member, ...profile } : member) } : conv;
+      setConversations(previous => previous.map(updateMembers));
+      setActiveConversation(updateMembers);
+      setMessages(previous => previous.map(message => message.senderId === profile.id
+        ? { ...message, senderName: profile.fullName, senderAvatar: profile.avatarUrl } : message));
+      setNotes(previous => [...previous.filter(note => note.id !== profile.id), ...(profile.statusText ? [profile] : [])]);
+    });
     let active = true;
+    const loadNotes = () => api.get('/users/notes').then(({ data }) => { if (active) setNotes(data); })
+      .catch(error => console.error('Không tải được ghi chú:', error));
+    loadNotes();
+    const noteExpiry = window.setInterval(loadNotes, 60000);
     const offConnection = wsService.onConnectionChange((connected) => {
-      if (!connected) { setOnlineUserIds(new Set()); return; }
+      if (!connected) { setOnlineUserIds(new Set()); setTypingUsers({}); return; }
+      fetchConversations();
+      loadNotes();
       api.get('/users/online').then(({ data }) => {
         if (active) setOnlineUserIds(new Set(data));
       }).catch((error) => console.error('Không tải được trạng thái trực tuyến:', error));
@@ -58,8 +101,25 @@ export const ChatProvider = ({ children }) => {
       active = false;
       offConnection();
       if (sub) sub.unsubscribe();
+      messageEvents.unsubscribe();
+      readEvents.unsubscribe();
+      profileEvents.unsubscribe();
+      window.clearInterval(noteExpiry);
     };
-  }, [user, fetchConversations]);
+  }, [user?.id, fetchConversations, applyProfile]);
+
+  const markActiveRead = useCallback(() => {
+    if (!activeIdRef.current || document.visibilityState !== 'visible') return;
+    api.put(`/messages/read/${activeIdRef.current}`).then(() => {
+      setConversations((prev) => prev.map((conv) => conv.id === activeIdRef.current
+        ? { ...conv, unreadCount: 0 } : conv));
+    }).catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener('visibilitychange', markActiveRead);
+    return () => document.removeEventListener('visibilitychange', markActiveRead);
+  }, [markActiveRead]);
 
   // Tải lịch sử tin nhắn khi đổi activeConversation & Subscribe WebSocket topic
   useEffect(() => {
@@ -67,6 +127,7 @@ export const ChatProvider = ({ children }) => {
 
     let isMounted = true;
     setLoadingMessages(true);
+    setTypingUsers({});
 
     api.get(`/messages?conversationId=${activeConversation.id}&page=0&size=50`)
       .then((res) => {
@@ -82,9 +143,10 @@ export const ChatProvider = ({ children }) => {
 
     // Lắng nghe tin nhắn realtime đến phòng này
     const sub = wsService.subscribeToConversation(activeConversation.id, (newMsg) => {
-      if (newMsg.senderId !== user.id && !newMsg.readAt && !newMsg.deleted) {
-        api.put(`/messages/read/${activeConversation.id}`).catch(console.error);
-      }
+      if (newMsg.senderId !== user.id && !newMsg.readAt && !newMsg.deleted) markActiveRead();
+      setTypingUsers(previous => {
+        const next = { ...previous }; delete next[newMsg.senderId]; return next;
+      });
       setMessages((prev) => prev.some(m => m.id === newMsg.id)
         ? prev.map(m => m.id === newMsg.id ? newMsg : m) : [...prev, newMsg]);
       // Cập nhật lastMessage cho conversation list
@@ -93,20 +155,49 @@ export const ChatProvider = ({ children }) => {
       );
     });
 
-    api.put(`/messages/read/${activeConversation.id}`).catch(console.error);
+    const typingSub = wsService.subscribe(`/topic/typing/${activeConversation.id}`, (event) => {
+      if (String(event.userId) === String(user.id)) return;
+      if (event.conversationId != null && String(event.conversationId) !== String(activeConversation.id)) return;
+      setTypingUsers((prev) => {
+        const next = { ...prev };
+        if (event.typing) next[event.userId] = { name: event.name || 'Người dùng', expires: Date.now() + 4500 };
+        else delete next[event.userId];
+        return next;
+      });
+    });
+
+    const typingExpiry = window.setInterval(() => {
+      setTypingUsers((prev) => Object.fromEntries(Object.entries(prev).filter(([, value]) => value.expires > Date.now())));
+    }, 1000);
+
+    markActiveRead();
 
     return () => {
       isMounted = false;
       if (sub) sub.unsubscribe();
+      typingSub.unsubscribe();
+      window.clearInterval(typingExpiry);
     };
-  }, [activeConversation, user]);
+  }, [activeConversation?.id, user?.id, markActiveRead]);
 
   // Gửi tin nhắn
-  const sendMessage = (content, type = 'TEXT') => {
-    if (!activeConversation || !user || !content.trim()) return;
+  const sendMessage = (content, type = 'TEXT', replyToId = null) => {
+    if (!activeConversation || !user || !content.trim()) return false;
 
-    wsService.sendMessage(activeConversation.id, user.id, content.trim(), type);
+    return wsService.sendMessage(activeConversation.id, user.id, content.trim(), type, replyToId);
   };
+
+  const sendTyping = useCallback((typing, conversationId = activeIdRef.current) =>
+    wsService.sendTyping(conversationId, typing), []);
+
+  const saveNote = async (text) => {
+    const { data } = text.trim() ? await api.put('/users/me/note', { text }) : await api.delete('/users/me/note');
+    applyProfile(data);
+    setNotes(previous => [...previous.filter(note => note.id !== data.id), ...(data.statusText ? [data] : [])]);
+  };
+  const reactMessage = async (id, emoji) => emoji
+    ? api.put(`/messages/${id}/reaction`, { emoji })
+    : api.delete(`/messages/${id}/reaction`);
 
   const uploadFile = async (file) => {
     if (!activeConversation) return;
@@ -186,6 +277,11 @@ export const ChatProvider = ({ children }) => {
         messages,
         loadingMessages,
         sendMessage,
+        sendTyping,
+        typingUsers,
+        notes,
+        saveNote,
+        reactMessage,
         uploadFile,
         editMessage,
         deleteMessage,

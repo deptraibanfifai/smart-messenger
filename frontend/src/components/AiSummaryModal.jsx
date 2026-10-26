@@ -6,22 +6,26 @@ export default function AiSummaryModal({ conversationId, onClose }) {
   const [summary, setSummary] = useState('');
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState('');
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     if (!conversationId) return;
 
     setLoading(true);
+    setError('');
     api.post('/ai/summary', { conversationId })
       .then((res) => {
         setSummary(res.data.response);
       })
       .catch((err) => {
-        setSummary(err.response?.data?.message || 'Không thể tạo bản tóm tắt lúc này.');
+        setSummary('');
+        setError(err.response?.data?.message || 'Không thể tạo bản tóm tắt lúc này.');
       })
       .finally(() => {
         setLoading(false);
       });
-  }, [conversationId]);
+  }, [conversationId, retry]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(summary);
@@ -53,6 +57,11 @@ export default function AiSummaryModal({ conversationId, onClose }) {
               <Sparkles className="w-6 h-6 animate-spin" />
               <p className="text-xs font-medium">AI đang đọc lịch sử tin nhắn và tổng hợp...</p>
             </div>
+          ) : error ? (
+            <div role="alert" className="text-sm text-rose-700">
+              <p>{error}</p>
+              <button type="button" onClick={() => setRetry((value) => value + 1)} className="mt-3 rounded-lg bg-rose-100 px-3 py-1.5 font-semibold hover:bg-rose-200">Thử lại</button>
+            </div>
           ) : (
             <div className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap">
               {summary}
@@ -63,7 +72,7 @@ export default function AiSummaryModal({ conversationId, onClose }) {
         <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
           <button
             onClick={handleCopy}
-            disabled={loading || !summary}
+            disabled={loading || !summary || !!error}
             className="flex items-center space-x-1 text-xs font-medium text-slate-600 hover:text-purple-600 transition disabled:opacity-40"
           >
             {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}

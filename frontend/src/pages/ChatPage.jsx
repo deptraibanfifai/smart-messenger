@@ -6,6 +6,7 @@ import NewGroupModal from '../components/NewGroupModal';
 import AiChatModal from '../components/AiChatModal';
 import AiSummaryModal from '../components/AiSummaryModal';
 import './ChatGlass.css';
+import './DirectLayout.css';
 
 export default function ChatPage() {
   const [showNewGroup, setShowNewGroup] = useState(false);
@@ -13,12 +14,12 @@ export default function ChatPage() {
   const [summaryConversationId, setSummaryConversationId] = useState(null);
 
   return (
-    <div className="messenger-glass flex flex-col h-screen overflow-hidden">
+    <div className="messenger-glass flex h-screen overflow-hidden">
       {/* Top Navbar */}
       <Navbar onOpenAiChat={() => setShowAiChat(true)} />
 
       {/* Main Body: Sidebar + Chat Window */}
-      <div className="messenger-layout flex flex-1 min-h-0 overflow-hidden">
+      <div className="messenger-layout flex flex-1 min-w-0 min-h-0 overflow-hidden">
         <Sidebar onOpenNewGroup={() => setShowNewGroup(true)} />
         <ChatWindow onOpenAiSummary={(convId) => setSummaryConversationId(convId)} />
       </div>

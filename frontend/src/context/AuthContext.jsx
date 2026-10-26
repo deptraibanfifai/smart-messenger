@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 import { wsService } from '../services/websocket';
 
@@ -31,7 +31,7 @@ export const AuthProvider = ({ children }) => {
         wsService.disconnect(user);
       }
     };
-  }, [user, token]);
+  }, [user?.id, user?.role, token]);
 
   const login = async (username, password) => {
     setLoading(true);
@@ -104,16 +104,23 @@ export const AuthProvider = ({ children }) => {
 
   const isAdmin = user?.role === 'ROLE_ADMIN';
 
-  const refreshProfile = async () => {
+  const applyProfile = useCallback((data) => {
+    setUser(previous => {
+      if (!previous || previous.id !== data.id) return previous;
+      const updated = { ...previous, ...data };
+      localStorage.setItem('smart_messenger_user', JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  const refreshProfile = useCallback(async () => {
     const { data } = await api.get('/users/me');
-    const updated = { ...user, ...data };
-    setUser(updated);
-    localStorage.setItem('smart_messenger_user', JSON.stringify(updated));
-    return updated;
-  };
+    applyProfile(data);
+    return data;
+  }, [applyProfile]);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, verifyEmail, googleLogin, logout, isAdmin, refreshProfile }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, verifyEmail, googleLogin, logout, isAdmin, refreshProfile, applyProfile }}>
       {children}
     </AuthContext.Provider>
   );

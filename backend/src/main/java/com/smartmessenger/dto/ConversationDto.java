@@ -23,6 +23,7 @@ public class ConversationDto {
     private Long ownerId;
     private List<UserDto> members;
     private ChatMessageDto lastMessage;
+    private long unreadCount;
     private LocalDateTime createdAt;
 
     public static ConversationDto fromEntity(Conversation conv, List<UserDto> members, ChatMessageDto lastMessage) {

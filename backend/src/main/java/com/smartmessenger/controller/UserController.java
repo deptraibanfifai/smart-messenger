@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 @RestController
 @RequestMapping("/api/users")
@@ -20,6 +21,24 @@ public class UserController {
 
     private final UserService userService;
     private final PresenceService presenceService;
+    private final SimpMessagingTemplate messagingTemplate;
+
+    @GetMapping("/notes")
+    public List<UserDto> notes() {
+        return userService.getNotes();
+    }
+
+    @PutMapping("/me/note")
+    public UserDto updateNote(@AuthenticationPrincipal UserDetailsImpl principal, @RequestBody Map<String, String> body) {
+        UserDto updated = userService.updateNote(principal.getUsername(), body.get("text"));
+        messagingTemplate.convertAndSend("/topic/profiles", updated);
+        return updated;
+    }
+
+    @DeleteMapping("/me/note")
+    public UserDto deleteNote(@AuthenticationPrincipal UserDetailsImpl principal) {
+        return updateNote(principal, Map.of("text", ""));
+    }
 
     @GetMapping("/online")
     public ResponseEntity<Set<Long>> online() {
@@ -34,7 +53,9 @@ public class UserController {
     @PutMapping("/me")
     public UserDto updateMe(@AuthenticationPrincipal UserDetailsImpl principal,
                             @RequestBody Map<String, String> body) {
-        return userService.updateProfile(principal.getUsername(), body.get("fullName"), body.get("avatarUrl"));
+        UserDto updated = userService.updateProfile(principal.getUsername(), body.get("fullName"), null);
+        messagingTemplate.convertAndSend("/topic/profiles", updated);
+        return updated;
     }
 
     @PutMapping("/me/password")

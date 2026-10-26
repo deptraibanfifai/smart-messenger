@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.time.LocalDateTime;
 
 @Repository
 public interface MessageRepository extends JpaRepository<Message, Long> {
@@ -23,4 +24,10 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     Page<Message> search(@Param("conversationId") Long conversationId, @Param("keyword") String keyword, Pageable pageable);
 
     List<Message> findByConversationIdAndSenderIdNotAndReadAtIsNull(Long conversationId, Long senderId);
+
+    @Query("SELECT COUNT(m) FROM Message m WHERE m.conversation.id = :conversationId AND m.sender.id <> :userId AND m.deleted = false")
+    long countAllUnread(@Param("conversationId") Long conversationId, @Param("userId") Long userId);
+
+    @Query("SELECT COUNT(m) FROM Message m WHERE m.conversation.id = :conversationId AND m.sender.id <> :userId AND m.deleted = false AND m.createdAt > :since")
+    long countUnreadSince(@Param("conversationId") Long conversationId, @Param("userId") Long userId, @Param("since") LocalDateTime since);
 }

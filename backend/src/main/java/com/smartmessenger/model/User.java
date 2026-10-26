@@ -37,6 +37,12 @@ public class User {
     @Column(name = "avatar_url", length = 500)
     private String avatarUrl;
 
+    @Column(name = "status_text", length = 80)
+    private String statusText;
+
+    @Column(name = "status_expires_at")
+    private LocalDateTime statusExpiresAt;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default

@@ -37,8 +37,12 @@ public class ConversationMember {
     @Column(name = "joined_at", updatable = false)
     private LocalDateTime joinedAt;
 
+    @Column(name = "last_read_at")
+    private LocalDateTime lastReadAt;
+
     @PrePersist
     protected void onCreate() {
         joinedAt = LocalDateTime.now();
+        if (lastReadAt == null) lastReadAt = joinedAt;
     }
 }

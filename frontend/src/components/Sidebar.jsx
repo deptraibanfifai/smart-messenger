@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useChat } from '../context/ChatContext';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
-import { Search, Plus, Users, User as UserIcon, MessageCircle } from 'lucide-react';
+import StatusNotes from './StatusNotes';
+import { Search, Users, MessageCircle, SquarePen } from 'lucide-react';
 
 export default function Sidebar({ onOpenNewGroup }) {
   const { user } = useAuth();
@@ -49,20 +50,13 @@ export default function Sidebar({ onOpenNewGroup }) {
     return otherMember ? onlineUserIds.has(otherMember.id) : false;
   };
 
+
   return (
     <aside className="chat-sidebar w-80 flex flex-col h-full shrink-0">
-      {/* Search & New Group Header */}
-      <div className="chat-sidebar-header p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold text-slate-800 tracking-tight">Đoạn chat</h2>
-          <button
-            onClick={onOpenNewGroup}
-            className="flex items-center space-x-1 text-xs font-semibold text-sky-600 bg-sky-50 hover:bg-sky-100 px-2.5 py-1.5 rounded-lg transition"
-            title="Tạo nhóm mới"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Tạo nhóm</span>
-          </button>
+      <div className="chat-sidebar-header">
+        <div className="chat-inbox-account">
+          <h2 title={user?.fullName}>{user?.username || 'Smart Messenger'}</h2>
+          <button type="button" onClick={onOpenNewGroup} aria-label="Tạo nhóm mới" title="Tạo nhóm mới"><SquarePen size={23} /></button>
         </div>
 
         <div className="relative">
@@ -75,10 +69,12 @@ export default function Sidebar({ onOpenNewGroup }) {
             className="chat-sidebar-search w-full pl-9 pr-3 py-2.5 rounded-xl text-sm focus:ring-2 focus:ring-sky-500 transition outline-none"
           />
         </div>
+        <StatusNotes />
+        <div className="chat-inbox-heading"><h3>Tin nhắn</h3><button type="button" onClick={onOpenNewGroup}>Tạo nhóm</button></div>
       </div>
 
       {/* Danh sách kết quả tìm kiếm hoặc danh sách Conversation */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+      <div className="chat-conversation-list flex-1 overflow-y-auto">
         {isSearching ? (
           <div>
             <p className="text-[11px] font-semibold text-slate-400 px-3 py-1.5 uppercase">
@@ -156,6 +152,7 @@ export default function Sidebar({ onOpenNewGroup }) {
                     {conv.lastMessage ? conv.lastMessage.content : 'Bắt đầu cuộc trò chuyện...'}
                   </p>
                 </div>
+                {conv.unreadCount > 0 && <span className="chat-unread-badge" aria-label={`${conv.unreadCount} tin nhắn chưa đọc`}>{conv.unreadCount > 99 ? '99+' : conv.unreadCount}</span>}
               </button>
             );
           })

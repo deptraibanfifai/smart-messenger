@@ -18,6 +18,8 @@ public class UserDto {
     private String role;
     private String status;
     private boolean online;
+    private String statusText;
+    private java.time.Instant statusExpiresAt;
 
     public static UserDto fromEntity(User user, boolean online) {
         return UserDto.builder()
@@ -28,6 +30,9 @@ public class UserDto {
                 .role(user.getRole().name())
                 .status(user.getStatus().name())
                 .online(online)
+                .statusText(user.getStatusExpiresAt() != null && user.getStatusExpiresAt().isAfter(java.time.LocalDateTime.now())
+                        ? user.getStatusText() : null)
+                .statusExpiresAt(user.getStatusExpiresAt() == null ? null : user.getStatusExpiresAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
                 .build();
     }
 }

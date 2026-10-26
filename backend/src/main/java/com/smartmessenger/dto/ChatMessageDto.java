@@ -8,6 +8,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 
 @Data
 @Builder
@@ -25,6 +27,10 @@ public class ChatMessageDto {
     private LocalDateTime editedAt;
     private LocalDateTime readAt;
     private boolean deleted;
+    private Long replyToId;
+    private String replyPreview;
+    private String replySenderName;
+    private Map<String, List<Long>> reactions;
 
     public static ChatMessageDto fromEntity(Message message) {
         return ChatMessageDto.builder()
@@ -39,6 +45,13 @@ public class ChatMessageDto {
                 .editedAt(message.getEditedAt())
                 .readAt(message.getReadAt())
                 .deleted(message.isDeleted())
+                .replyToId(message.getReplyTo() != null ? message.getReplyTo().getId() : null)
+                .replyPreview(message.getReplyTo() == null ? null : message.getReplyTo().isDeleted()
+                        ? "Tin nhắn đã bị xóa" : message.getReplyTo().getMessageType() == MessageType.IMAGE
+                        ? "Ảnh" : message.getReplyTo().getMessageType() == MessageType.FILE
+                        ? "Tệp" : message.getReplyTo().getContent())
+                .replySenderName(message.getReplyTo() != null && message.getReplyTo().getSender() != null
+                        ? message.getReplyTo().getSender().getFullName() : null)
                 .build();
     }
 }

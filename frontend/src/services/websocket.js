@@ -32,7 +32,7 @@ class WebSocketService {
         if (this.client !== currentClient) return;
         this.connected = true;
         this.subscriptions.clear();
-        for (const [topic, handler] of this.listeners) this.subscribe(topic, handler);
+        for (const [topic, handler] of this.listeners) this.attachSubscription(topic, handler);
         console.log('🟢 [STOMP CONNECTED] Thành công kết nối WebSocket!');
         for (const listener of this.connectionListeners) listener(true);
 
@@ -62,18 +62,25 @@ class WebSocketService {
 
   subscribe(topic, handler) {
     this.listeners.set(topic, handler);
-    if (!this.client || !this.connected) return { unsubscribe: () => this.listeners.delete(topic) };
-    if (this.subscriptions.has(topic)) {
-      this.subscriptions.get(topic).unsubscribe();
-    }
+    this.attachSubscription(topic, handler);
+    return { unsubscribe: () => {
+      // A cleanup from an older render must not remove a newer listener.
+      if (this.listeners.get(topic) !== handler) return;
+      this.subscriptions.get(topic)?.unsubscribe();
+      this.subscriptions.delete(topic);
+      this.listeners.delete(topic);
+    } };
+  }
 
-    const sub = this.client.subscribe(topic, (message) => {
-      const payload = JSON.parse(message.body);
-      handler(payload);
+  attachSubscription(topic, handler) {
+    if (!this.client || !this.connected) return;
+    this.subscriptions.get(topic)?.unsubscribe();
+    const sub = this.client.subscribe(topic, message => {
+      if (this.listeners.get(topic) !== handler) return;
+      try { handler(JSON.parse(message.body)); }
+      catch (error) { console.error('Không đọc được sự kiện WebSocket', error); }
     });
-
     this.subscriptions.set(topic, sub);
-    return { unsubscribe: () => { this.subscriptions.get(topic)?.unsubscribe(); this.subscriptions.delete(topic); this.listeners.delete(topic); } };
   }
 
   subscribeToPresence(onPresenceReceived) {
@@ -87,7 +94,7 @@ class WebSocketService {
     return () => this.connectionListeners.delete(listener);
   }
 
-  sendMessage(conversationId, senderId, content, messageType = 'TEXT') {
+  sendMessage(conversationId, senderId, content, messageType = 'TEXT', replyToId = null) {
     if (!this.client || !this.connected) {
       console.error('Không thể gửi tin: WebSocket chưa kết nối');
       return false;
@@ -99,7 +106,17 @@ class WebSocketService {
         conversationId,
         content,
         messageType,
+        replyToId,
       }),
+    });
+    return true;
+  }
+
+  sendTyping(conversationId, typing) {
+    if (!this.client || !this.connected || !conversationId) return false;
+    this.client.publish({
+      destination: '/app/chat.typing',
+      body: JSON.stringify({ conversationId, typing }),
     });
     return true;
   }

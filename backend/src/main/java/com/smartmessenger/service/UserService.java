@@ -28,13 +28,35 @@ public class UserService {
         if (fullName == null || fullName.isBlank() || fullName.trim().length() > 100) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tên hiển thị phải có 1–100 ký tự");
         }
-        if (avatarUrl != null && !avatarUrl.isBlank() &&
-                (avatarUrl.length() > 500 || !avatarUrl.matches("(?i)^https://[^\\s]+$"))) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ảnh đại diện phải là URL HTTPS hợp lệ");
-        }
         user.setFullName(fullName.trim());
-        user.setAvatarUrl(avatarUrl == null || avatarUrl.isBlank() ? null : avatarUrl.trim());
+        // Avatar is updated only by the dedicated local-file upload endpoint.
         return UserDto.fromEntity(userRepository.save(user), true);
+    }
+
+    @Transactional
+    public UserDto updateAvatar(String username, String avatarUrl) {
+        User user = userRepository.findByUsername(username).orElseThrow();
+        user.setAvatarUrl(avatarUrl);
+        return UserDto.fromEntity(userRepository.save(user), presenceService.isUserOnline(user.getId()));
+    }
+
+    @Transactional
+    public UserDto updateNote(String username, String text) {
+        String note = text == null ? "" : text.trim();
+        if (note.length() > 80) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Trạng thái tối đa 80 ký tự");
+        User user = userRepository.findByUsername(username).orElseThrow();
+        user.setStatusText(note.isEmpty() ? null : note);
+        user.setStatusExpiresAt(note.isEmpty() ? null : java.time.LocalDateTime.now().plusHours(24));
+        return UserDto.fromEntity(userRepository.save(user), presenceService.isUserOnline(user.getId()));
+    }
+
+    public List<UserDto> getNotes() {
+        var now = java.time.LocalDateTime.now();
+        return userRepository.findAll().stream()
+                .filter(u -> u.getStatus() == UserStatus.ACTIVE && u.getStatusText() != null
+                        && u.getStatusExpiresAt() != null && u.getStatusExpiresAt().isAfter(now))
+                .map(u -> UserDto.fromEntity(u, presenceService.isUserOnline(u.getId())))
+                .collect(Collectors.toList());
     }
 
     @Transactional

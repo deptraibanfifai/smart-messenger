@@ -69,12 +69,24 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                                 Long id = Long.valueOf(destination.substring("/topic/conversation/".length()));
                                 if (!members.existsByConversationIdAndUserId(id, user.getId())) throw new NumberFormatException();
                             } catch (NumberFormatException ex) { throw new ResponseStatusException(HttpStatus.FORBIDDEN); }
-                        } else if (!destination.equals("/topic/presence")) throw new ResponseStatusException(HttpStatus.FORBIDDEN);
-                    } else if (!destination.equals("/app/chat.sendMessage")) throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+                        } else if (!destination.equals("/topic/presence") &&
+                                !destination.equals("/topic/profiles") &&
+                                !destination.equals("/user/queue/chat-events") &&
+                                !destination.equals("/user/queue/read") &&
+                                !(destination.startsWith("/topic/typing/") &&
+                                        isConversationMember(destination.substring("/topic/typing/".length()), user.getId())))
+                            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+                    } else if (!destination.equals("/app/chat.sendMessage") &&
+                            !destination.equals("/app/chat.typing")) throw new ResponseStatusException(HttpStatus.FORBIDDEN);
                 }
                 return message;
             }
         });
+    }
+
+    private boolean isConversationMember(String id, Long userId) {
+        try { return members.existsByConversationIdAndUserId(Long.valueOf(id), userId); }
+        catch (NumberFormatException e) { return false; }
     }
 
     @Override

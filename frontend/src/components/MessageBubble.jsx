@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Bot } from 'lucide-react';
+import { Bot, CornerUpLeft, SmilePlus, MoreHorizontal, Pencil, Trash2, FileDown } from 'lucide-react';
 import api from '../services/api';
 import { getChatTheme } from '../utils/chatTheme';
 
-export default function MessageBubble({ message, isMine, themeColor, onEdit, onDelete }) {
+export default function MessageBubble({ message, isMine, showSender, themeColor, currentUserId, onReply, onReact, onEdit, onDelete }) {
   const [fileUrl, setFileUrl] = useState(null);
   const [fileError, setFileError] = useState(false);
+  const [showReactions, setShowReactions] = useState(false);
+  const [showMore, setShowMore] = useState(false);
   useEffect(() => {
     setFileUrl(null);
     setFileError(false);
@@ -25,14 +27,8 @@ export default function MessageBubble({ message, isMine, themeColor, onEdit, onD
 
   if (isSystem) {
     return (
-      <div className="flex justify-center my-1">
-        <span className="text-[10px] bg-slate-200/60 text-slate-600 px-3 py-1 rounded-full">
-          {message.deleted ? 'Tin nhắn đã bị xóa' : message.messageType === 'IMAGE'
-            ? (fileUrl ? <a href={fileUrl} download="image"><img className="max-w-64 rounded" src={fileUrl} alt="Ảnh đính kèm" /></a> : 'Đang tải ảnh...')
-            : message.messageType === 'FILE'
-              ? (fileUrl ? <a href={fileUrl} download="attachment" className="underline">Tải tệp đính kèm</a> : 'Đang tải tệp...')
-              : message.content}
-        </span>
+      <div className="chat-system-message">
+        <span>{message.deleted ? 'Tin nhắn đã bị xóa' : message.content}</span>
       </div>
     );
   }
@@ -48,47 +44,55 @@ export default function MessageBubble({ message, isMine, themeColor, onEdit, onD
   };
 
   return (
-    <div className={`flex items-end space-x-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
+    <div className={`chat-message-row ${isMine ? 'is-mine' : 'is-theirs'}`}>
       {!isMine && (
         <img
           src={message.senderAvatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=user'}
           alt=""
-          className="w-7 h-7 rounded-full bg-slate-200 mb-1 object-cover shrink-0"
+          className="chat-message-avatar"
         />
       )}
 
-      <div className={`max-w-[70%] space-y-1 ${isMine ? 'items-end' : 'items-start'}`}>
-        {!isMine && (
-          <p className="text-[10px] text-slate-400 font-medium px-1 flex items-center gap-1">
-            {isAi && <Bot className="w-3 h-3 text-purple-600" />}
+      <div className="chat-message-stack">
+        {!isMine && showSender && (
+          <p className="chat-message-sender">
+            {isAi && <Bot size={14} />}
             {message.senderName}
           </p>
         )}
 
         <div
-          style={{
-            background: isMine ? chatTheme.background : '#ffffff',
-            color: isMine ? chatTheme.text : '#1e293b',
-          }}
-          className={`px-3.5 py-2 rounded-2xl text-xs leading-relaxed shadow-sm break-words whitespace-pre-wrap ${
-            isMine ? 'rounded-br-sm' : 'rounded-bl-sm border border-slate-100'
-          }`}
+          style={isMine ? { background: themeColor === '#0284c7' ? '#514cff' : chatTheme.background, color: themeColor === '#0284c7' ? '#fff' : chatTheme.text } : undefined}
+          className={`chat-message-bubble ${message.messageType === 'IMAGE' ? 'has-image' : ''}`}
         >
+          {message.replyToId && <div className="chat-quoted-message"><strong>{message.replySenderName || 'Tin nhắn'}</strong><span>{message.replyPreview || 'Tin nhắn đã xóa'}</span></div>}
           {message.deleted ? 'Tin nhắn đã bị xóa' : message.messageType === 'IMAGE'
-            ? (fileUrl ? <a href={fileUrl} download="image"><img src={fileUrl} alt="Ảnh đính kèm" className="max-w-full max-h-80 rounded-lg" /></a>
+            ? (fileUrl ? <a href={fileUrl} download="image"><img src={fileUrl} alt="Ảnh đính kèm" className="chat-message-image" /></a>
               : fileError ? 'Không tải được ảnh đính kèm' : 'Đang tải ảnh...')
             : message.messageType === 'FILE'
-              ? (fileUrl ? <a href={fileUrl} download="attachment" className="underline">Tải tệp đính kèm</a>
+              ? (fileUrl ? <a href={fileUrl} download="attachment" className="chat-file-link"><FileDown size={19} /> Tải tệp đính kèm</a>
                 : fileError ? 'Không tải được tệp đính kèm' : 'Đang tải tệp...')
               : message.content}
         </div>
 
-        <p className={`text-[9px] text-slate-400 px-1 ${isMine ? 'text-right' : 'text-left'}`}>
+        {Object.entries(message.reactions || {}).length > 0 && <div className="chat-reaction-list">
+          {Object.entries(message.reactions).map(([emoji, ids]) => <button type="button" key={emoji} onClick={() => onReact(ids.includes(currentUserId) ? null : emoji)} aria-label={`${emoji}: ${ids.length} người`} aria-pressed={ids.includes(currentUserId)}>{emoji} {ids.length}</button>)}
+        </div>}
+
+        <p className="chat-message-meta">
           {formatTime(message.createdAt)} {message.editedAt ? '· đã sửa' : ''} {isMine ? (message.readAt ? '· đã đọc' : '· đã gửi') : ''}
         </p>
-        {isMine && !message.deleted && <div className="flex gap-2 text-[10px] text-slate-500 justify-end">
-          {message.messageType === 'TEXT' && <button onClick={() => { const text = window.prompt('Sửa tin nhắn', message.content); if (text?.trim()) onEdit(text); }}>Sửa</button>}
-          <button onClick={() => onDelete()}>Xóa</button>
+        {!message.deleted && !isAi && <div className="chat-message-toolbar">
+          <button type="button" onClick={onReply} aria-label="Trả lời tin nhắn" title="Trả lời"><CornerUpLeft size={17} /><span className="chat-action-label">Trả lời</span></button>
+          <button type="button" aria-label="Thả cảm xúc" title="Thả cảm xúc" aria-expanded={showReactions} onClick={() => { setShowReactions((open) => !open); setShowMore(false); }}><SmilePlus size={17} /><span className="chat-action-label">Cảm xúc</span></button>
+          {isMine && <button type="button" aria-label="Thêm thao tác" aria-expanded={showMore} onClick={() => { setShowMore((open) => !open); setShowReactions(false); }}><MoreHorizontal size={18} /></button>}
+          {showReactions && <div className="chat-emoji-picker" aria-label="Chọn cảm xúc">
+            {['👍', '❤️', '😂', '😮', '😢'].map((emoji) => <button type="button" key={emoji} title={`Thả cảm xúc ${emoji}`} onClick={() => { onReact(message.reactions?.[emoji]?.includes(currentUserId) ? null : emoji); setShowReactions(false); }}>{emoji}</button>)}
+          </div>}
+          {showMore && <div className="chat-message-menu">
+            {message.messageType === 'TEXT' && <button type="button" onClick={() => { setShowMore(false); const text = window.prompt('Sửa tin nhắn', message.content); if (text?.trim()) onEdit(text); }}><Pencil size={15} /> Sửa tin nhắn</button>}
+            <button type="button" onClick={() => { setShowMore(false); onDelete(); }}><Trash2 size={15} /> Xóa tin nhắn</button>
+          </div>}
         </div>}
       </div>
     </div>

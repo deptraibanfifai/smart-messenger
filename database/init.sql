@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS users (
     password VARCHAR(255) NOT NULL, -- BCrypt hashed
     full_name VARCHAR(100) NOT NULL,
     avatar_url VARCHAR(500) DEFAULT 'https://api.dicebear.com/7.x/bottts/svg?seed=messenger',
+    status_text VARCHAR(80) NULL,
+    status_expires_at DATETIME NULL,
     role ENUM('ROLE_USER', 'ROLE_ADMIN') DEFAULT 'ROLE_USER',
     status ENUM('ACTIVE', 'BANNED') DEFAULT 'ACTIVE',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -54,6 +56,7 @@ CREATE TABLE IF NOT EXISTS conversation_members (
     user_id BIGINT NOT NULL,
     role ENUM('OWNER', 'ADMIN', 'MEMBER') DEFAULT 'MEMBER',
     joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_read_at TIMESTAMP NULL,
     FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     UNIQUE KEY uk_conv_member (conversation_id, user_id)
@@ -67,10 +70,22 @@ CREATE TABLE IF NOT EXISTS messages (
     -- NULL nếu là AI hoặc Thông báo hệ thống
     content TEXT NOT NULL,
     message_type ENUM('TEXT', 'SYSTEM', 'AI', 'IMAGE', 'FILE') DEFAULT 'TEXT',
+    reply_to_id BIGINT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
     FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (reply_to_id) REFERENCES messages(id) ON DELETE SET NULL,
     INDEX idx_conv_time (conversation_id, created_at)
+);
+
+CREATE TABLE IF NOT EXISTS message_reactions (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    message_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    emoji VARCHAR(12) NOT NULL,
+    UNIQUE KEY uk_message_reaction (message_id, user_id),
+    FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 
