@@ -11,20 +11,25 @@ export default function AiSummaryModal({ conversationId, onClose }) {
 
   useEffect(() => {
     if (!conversationId) return;
-
+    const controller = new AbortController();
     setLoading(true);
     setError('');
-    api.post('/ai/summary', { conversationId })
+    setSummary('');
+    api.post('/ai/summary', { conversationId }, { signal: controller.signal, timeout: 100000 })
       .then((res) => {
         setSummary(res.data.response);
       })
       .catch((err) => {
+        if (controller.signal.aborted) return;
         setSummary('');
-        setError(err.response?.data?.message || 'Không thể tạo bản tóm tắt lúc này.');
+        setError(err.response?.data?.message || (err.code === 'ECONNABORTED'
+          ? 'AI tóm tắt chưa phản hồi kịp. Thử lại sau.'
+          : 'Không thể tạo bản tóm tắt lúc này.'));
       })
       .finally(() => {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       });
+    return () => controller.abort();
   }, [conversationId, retry]);
 
   const handleCopy = () => {

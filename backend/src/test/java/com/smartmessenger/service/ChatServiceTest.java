@@ -37,7 +37,8 @@ class ChatServiceTest {
     @BeforeEach
     void setUp() {
         conversation = Conversation.builder().id(10L).type(ConversationType.DIRECT).build();
-        sender = User.builder().id(1L).username("alice").fullName("Alice").build();
+        sender = User.builder().id(1L).username("alice").fullName("Alice")
+                .role(Role.ROLE_USER).status(UserStatus.ACTIVE).build();
     }
 
     @Test
@@ -77,5 +78,28 @@ class ChatServiceTest {
 
         assertEquals(3L, service.mapToConversationDto(conversation, 1L).getUnreadCount());
         verify(messages).countUnreadSince(10L, 1L, readAt);
+    }
+
+    @Test
+    void nonMemberCannotChangeNickname() {
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+                () -> service.updateNickname(10L, 5L, 1L, "Bạn thân"));
+        assertEquals(HttpStatus.FORBIDDEN, error.getStatusCode());
+        verify(members, never()).save(any());
+    }
+
+    @Test
+    void nicknameIsVisibleInConversationAndCanBeCleared() {
+        when(members.existsByConversationIdAndUserId(10L, 1L)).thenReturn(true);
+        ConversationMember member = ConversationMember.builder().conversation(conversation).user(sender).build();
+        when(members.findByConversationIdAndUserId(10L, 1L)).thenReturn(Optional.of(member));
+        when(members.findByConversationId(10L)).thenReturn(List.of(member));
+        when(conversations.findById(10L)).thenReturn(Optional.of(conversation));
+        when(messages.findByConversationIdOrderByCreatedAtDesc(eq(10L), any()))
+                .thenReturn(org.springframework.data.domain.Page.empty());
+        assertEquals("Bạn thân", service.updateNickname(10L, 1L, 1L, "  Bạn thân  ")
+                .getMembers().get(0).getNickname());
+        assertNull(service.updateNickname(10L, 1L, 1L, "").getMembers().get(0).getNickname());
+        verify(members, times(2)).save(member);
     }
 }

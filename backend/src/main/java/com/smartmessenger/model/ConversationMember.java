@@ -40,6 +40,10 @@ public class ConversationMember {
     @Column(name = "last_read_at")
     private LocalDateTime lastReadAt;
 
+    // Shared with the participants of this conversation; blank means use the profile name.
+    @Column(name = "nickname", length = 60)
+    private String nickname;
+
     @PrePersist
     protected void onCreate() {
         joinedAt = LocalDateTime.now();

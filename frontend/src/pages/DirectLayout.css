@@ -37,14 +37,14 @@
 .chat-conversation-list { padding: 0 9px 15px; }
 .messenger-glass .chat-conversation { min-height: 86px; margin: 2px 0; padding: 11px 16px; border-radius: 12px; background: #fff; color: #1f2937; }
 .messenger-glass .chat-conversation:hover, .messenger-glass .chat-conversation.bg-sky-50 { background: #f2f3f5; box-shadow: none; }
-.messenger-glass .chat-conversation img { width: 57px; height: 57px; }
+.messenger-glass .chat-conversation img { width: 57px; height: 57px; aspect-ratio: 1; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
 .messenger-glass .chat-conversation p.text-xs { font-size: 15px; color: #151515; font-weight: 600; }
 .messenger-glass .chat-conversation p.text-\[11px\] { font-size: 13px; color: #6b7280; margin-top: 4px; }
 .chat-unread-badge { background: #514cff; font-size: 11px; }
 .messenger-glass .chat-main { margin: 0; border: 0; border-radius: 0; box-shadow: none; background: #fff; }
 .messenger-glass .chat-center { min-width: 0; background: #fff; }
 .messenger-glass .chat-header { min-height: 86px; padding: 0 24px; background: #fff; border-bottom: 1px solid #e5e7eb; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
-.messenger-glass .chat-header img { width: 52px; height: 52px; }
+.messenger-glass .chat-header img { width: 52px; height: 52px; aspect-ratio: 1; border-radius: 50%; object-fit: cover; }
 .messenger-glass .chat-header h2 { font-size: 16px; color: #171717; }
 .messenger-glass .chat-header p { font-size: 12px; color: #6b7280; }
 .messenger-glass .chat-icon-button { width: 40px; height: 40px; border-radius: 50%; color: #171717; }
@@ -53,7 +53,7 @@
 .messenger-glass .chat-messages > .chat-message-row { margin: 5px 0; }
 .chat-message-row { display: flex; align-items: flex-end; gap: 8px; min-height: 38px; }
 .chat-message-row.is-mine { justify-content: flex-end; }
-.chat-message-avatar { width: 30px; height: 30px; margin: 0 0 2px; border: 0; box-shadow: none; }
+.chat-message-avatar { width: 30px; height: 30px; aspect-ratio: 1; border-radius: 50%; object-fit: cover; margin: 0 0 2px; border: 0; box-shadow: none; }
 .chat-message-stack { position: relative; max-width: min(70%, 680px); width: fit-content; align-items: flex-start; }
 .is-mine .chat-message-stack { align-items: flex-end; }
 .chat-message-sender { margin: 0 9px 4px; font-size: 11px; font-weight: 600; color: #6b7280; }
@@ -122,7 +122,14 @@
 .chat-note-person { position: relative; flex: 0 0 84px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 7px; padding-top: 30px; min-height: 120px; color: #475569; }
 .chat-note-person > span:last-child { display: block; max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 .chat-note-avatar { position: relative; display: grid; place-items: center; width: 60px; height: 60px; border-radius: 50%; background: #f2f0ff; }
-.chat-note-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.chat-note-avatar img { display: block; width: 60px; height: 60px; aspect-ratio: 1; border-radius: 50%; object-fit: cover; }
+.chat-nickname-form { display: grid; gap: 9px; padding: 12px; margin: 4px 0 10px; background: #f6f5ff; border-radius: 12px; }
+.chat-nickname-form input, .chat-nickname-form select { width: 100%; min-width: 0; padding: 9px 11px; border: 1px solid #d9d6f4; border-radius: 9px; background: #fff; color: #1f2937; }
+.chat-nickname-form > div { display: flex; gap: 8px; }
+.chat-nickname-form button { padding: 8px 10px; background: #514cff; color: white; border-radius: 8px; }
+.chat-nickname-form button:last-child { background: #e9e8f8; color: #322b69; }
+.messenger-glass .chat-info-options .chat-nickname-form button { width: auto; min-height: 36px; padding: 8px 10px; background: #514cff; color: #fff; border-radius: 8px; }
+.messenger-glass .chat-info-options .chat-nickname-form button:last-child { background: #e9e8f8; color: #322b69; }
 .chat-note-bubble { position: absolute; top: 0; left: 50%; transform: translateX(-50%); z-index: 1; width: 90px; max-height: 47px; padding: 7px 8px; border: 1px solid #eceaf7; border-radius: 14px; background: #f6f3ff; color: #51466f; font-size: 11px; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; box-shadow: 0 3px 7px #29176008; }
 .chat-note-person.is-self .chat-note-bubble { background: #f3f4f6; color: #6b7280; border-color: #edf0f3; }
 .chat-note-avatar i { position: absolute; right: -1px; bottom: 0; display: grid; place-items: center; border: 2px solid #fff; border-radius: 50%; }

@@ -74,6 +74,14 @@ export const ChatProvider = ({ children }) => {
         ? { ...conv, unreadCount: 0 } : conv));
     });
 
+    const nicknameEvents = wsService.subscribe('/user/queue/conversation-nicknames', ({ conversationId, memberId, nickname }) => {
+      const apply = conv => conv && String(conv.id) === String(conversationId)
+        ? { ...conv, members: conv.members?.map(member => String(member.id) === String(memberId)
+          ? { ...member, nickname: nickname || null } : member) } : conv;
+      setConversations(previous => previous.map(apply));
+      setActiveConversation(apply);
+    });
+
     const profileEvents = wsService.subscribe('/topic/profiles', (profile) => {
       applyProfile(profile);
       const updateMembers = conv => conv ? { ...conv, members: conv.members?.map(member => member.id === profile.id ? { ...member, ...profile } : member) } : conv;
@@ -103,6 +111,7 @@ export const ChatProvider = ({ children }) => {
       if (sub) sub.unsubscribe();
       messageEvents.unsubscribe();
       readEvents.unsubscribe();
+      nicknameEvents.unsubscribe();
       profileEvents.unsubscribe();
       window.clearInterval(noteExpiry);
     };
@@ -127,6 +136,7 @@ export const ChatProvider = ({ children }) => {
 
     let isMounted = true;
     setLoadingMessages(true);
+    setMessages([]);
     setTypingUsers({});
 
     api.get(`/messages?conversationId=${activeConversation.id}&page=0&size=50`)
@@ -209,6 +219,14 @@ export const ChatProvider = ({ children }) => {
   const editMessage = (id, content) => api.put(`/messages/${id}`, { content });
   const deleteMessage = (id) => api.delete(`/messages/${id}`);
 
+  const updateNickname = async (memberId, nickname) => {
+    if (!activeConversation) return;
+    const id = activeConversation.id;
+    const { data } = await api.put(`/conversations/${id}/members/${memberId}/nickname`, { nickname });
+    setConversations(previous => previous.map(conv => conv.id === id ? { ...conv, members: data.members } : conv));
+    setActiveConversation(previous => previous?.id === id ? { ...previous, members: data.members } : previous);
+  };
+
   const manageGroup = async (action, value) => {
     if (!activeConversation || activeConversation.type !== 'GROUP') return;
     const id = activeConversation.id;
@@ -285,6 +303,7 @@ export const ChatProvider = ({ children }) => {
         uploadFile,
         editMessage,
         deleteMessage,
+        updateNickname,
         manageGroup,
         updateTheme,
         startDirectChat,

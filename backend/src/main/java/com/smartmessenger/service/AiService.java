@@ -26,7 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Locale;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
@@ -86,7 +86,7 @@ public class AiService {
     public AiResponseDto summarizeConversation(AiSummaryRequest request, Long userId) {
         chatService.requireMember(request.getConversationId(), userId);
         List<Message> messages = messageRepository.findByConversationIdOrderByCreatedAtDesc(request.getConversationId(),
-                org.springframework.data.domain.PageRequest.of(0, 50)).getContent();
+                org.springframework.data.domain.PageRequest.of(0, 30)).getContent();
         if (messages.isEmpty()) {
             return AiResponseDto.builder()
                     .response("Cuộc trò chuyện này chưa có tin nhắn nào để tóm tắt.")
@@ -94,15 +94,24 @@ public class AiService {
                     .build();
         }
 
-        // Ghép lịch sử tin nhắn
-        String history = messages.stream().filter(m -> !m.isDeleted() && m.getMessageType() == com.smartmessenger.model.MessageType.TEXT)
-                .limit(50)
-                .map(m -> (m.getSender() != null ? m.getSender().getFullName() : "Hệ thống") + ": " + m.getContent())
-                .collect(Collectors.joining("\n"));
+        // Chọn những tin mới nhất trong giới hạn; sau đó khôi phục thứ tự thời gian.
+        List<String> selected = new ArrayList<>();
+        int remaining = 6000;
+        for (Message message : messages) {
+            if (message.isDeleted() || message.getMessageType() != com.smartmessenger.model.MessageType.TEXT
+                    || message.getContent() == null || message.getContent().isBlank()) continue;
+            String name = message.getSender() != null ? message.getSender().getFullName() : "Hệ thống";
+            String line = (name == null ? "Người dùng" : name) + ": " + message.getContent().replace('\n', ' ');
+            if (selected.isEmpty() && line.length() > remaining) line = line.substring(0, remaining);
+            if (line.length() > remaining) break;
+            selected.add(line);
+            remaining -= line.length() + 1;
+        }
+        Collections.reverse(selected);
+        String history = String.join("\n", selected);
         if (history.isBlank()) {
             return AiResponseDto.builder().response("Cuộc trò chuyện chưa có tin nhắn văn bản để tóm tắt.").model("Gemini").build();
         }
-        if (history.length() > 12000) history = history.substring(0, 12000);
 
         String prompt = "Dưới đây là lịch sử cuộc trò chuyện trong phòng chat Smart Messenger:\n\n"
                 + history

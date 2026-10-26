@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS conversation_members (
     role ENUM('OWNER', 'ADMIN', 'MEMBER') DEFAULT 'MEMBER',
     joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_read_at TIMESTAMP NULL,
+    nickname VARCHAR(60) NULL,
     FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     UNIQUE KEY uk_conv_member (conversation_id, user_id)

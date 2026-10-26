@@ -64,6 +64,31 @@ public class ChatService {
     }
 
     @Transactional
+    public ConversationDto updateNickname(Long conversationId, Long actor, Long memberId, String nickname) {
+        requireMember(conversationId, actor);
+        if (nickname != null && nickname.trim().length() > 60)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Biệt danh tối đa 60 ký tự");
+        ConversationMember target = memberRepository.findByConversationIdAndUserId(conversationId, memberId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Người dùng không thuộc đoạn chat"));
+        String normalized = nickname == null || nickname.isBlank() ? null : nickname.trim();
+        target.setNickname(normalized);
+        memberRepository.save(target);
+        Conversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        ConversationDto dto = mapToConversationDto(conversation, actor);
+        List<String> usernames = memberRepository.findByConversationId(conversationId).stream()
+                .map(member -> member.getUser().getUsername()).toList();
+        afterCommit(() -> {
+            for (String username : usernames) {
+                messagingTemplate.convertAndSendToUser(username, "/queue/conversation-nicknames",
+                        Map.of("conversationId", conversationId, "memberId", memberId,
+                                "nickname", normalized == null ? "" : normalized));
+            }
+        });
+        return dto;
+    }
+
+    @Transactional
     public ConversationDto addMember(Long id, Long actor, Long memberId) {
         Conversation conv = requireOwner(id, actor);
         User user = userRepository.findById(memberId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
@@ -352,7 +377,11 @@ public class ChatService {
 
     public ConversationDto mapToConversationDto(Conversation conversation, Long viewerId) {
         List<UserDto> memberDtos = memberRepository.findByConversationId(conversation.getId()).stream()
-                .map(m -> UserDto.fromEntity(m.getUser(), presenceService.isUserOnline(m.getUser().getId())))
+                .map(m -> {
+                    UserDto member = UserDto.fromEntity(m.getUser(), presenceService.isUserOnline(m.getUser().getId()));
+                    member.setNickname(m.getNickname());
+                    return member;
+                })
                 .collect(Collectors.toList());
 
         ChatMessageDto lastMessage = messageRepository.findByConversationIdOrderByCreatedAtDesc(

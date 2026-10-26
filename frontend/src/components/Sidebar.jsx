@@ -33,7 +33,7 @@ export default function Sidebar({ onOpenNewGroup }) {
   const getConversationTitle = (conv) => {
     if (conv.type === 'GROUP') return conv.title || 'Nhóm không tên';
     const otherMember = conv.members?.find((m) => m.id !== user?.id);
-    return otherMember?.fullName || 'Người dùng';
+    return otherMember?.nickname || otherMember?.fullName || 'Người dùng';
   };
 
   const getConversationAvatar = (conv) => {

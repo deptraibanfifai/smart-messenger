@@ -73,6 +73,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                                 !destination.equals("/topic/profiles") &&
                                 !destination.equals("/user/queue/chat-events") &&
                                 !destination.equals("/user/queue/read") &&
+                                !destination.equals("/user/queue/conversation-nicknames") &&
                                 !(destination.startsWith("/topic/typing/") &&
                                         isConversationMember(destination.substring("/topic/typing/".length()), user.getId())))
                             throw new ResponseStatusException(HttpStatus.FORBIDDEN);

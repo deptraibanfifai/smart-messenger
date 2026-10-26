@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import { useChat } from '../context/ChatContext';
 import { useAuth } from '../context/AuthContext';
 import MessageBubble from './MessageBubble';
@@ -9,11 +9,11 @@ import api from '../services/api';
 import ThemePicker from './ThemePicker';
 import { getChatTheme } from '../utils/chatTheme';
 import { readWallpaper, saveWallpaper, clearWallpaper } from '../utils/chatWallpaper';
-import { Send, Palette, Sparkles, Users, Info, Paperclip, Search, X, ChevronDown, ChevronRight, Image as ImageIcon, FileText } from 'lucide-react';
+import { Send, Palette, Sparkles, Users, Info, Paperclip, Search, X, ChevronDown, ChevronRight, Image as ImageIcon, FileText, Pencil } from 'lucide-react';
 
 export default function ChatWindow({ onOpenAiSummary }) {
   const { user } = useAuth();
-  const { activeConversation, messages, loadingMessages, sendMessage, sendTyping, typingUsers, reactMessage, onlineUserIds, uploadFile, editMessage, deleteMessage } = useChat();
+  const { activeConversation, messages, loadingMessages, sendMessage, sendTyping, typingUsers, reactMessage, onlineUserIds, uploadFile, editMessage, deleteMessage, updateNickname } = useChat();
   const [inputText, setInputText] = useState('');
   const [replyTo, setReplyTo] = useState(null);
   const [contactOpen, setContactOpen] = useState(false);
@@ -26,20 +26,32 @@ export default function ChatWindow({ onOpenAiSummary }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [sectionOpen, setSectionOpen] = useState({ settings: true, media: true });
   const [error, setError] = useState('');
+  const [nicknameOpen, setNicknameOpen] = useState(false);
+  const [nicknameMemberId, setNicknameMemberId] = useState('');
+  const [nicknameDraft, setNicknameDraft] = useState('');
+  const [nicknameSaving, setNicknameSaving] = useState(false);
   const [wallpaperUrl, setWallpaperUrl] = useState(null);
   const fileRef = useRef(null);
   const wallpaperRef = useRef(null);
   const wallpaperUrlRef = useRef(null);
   const searchRef = useRef(null);
   const searchRequestRef = useRef(0);
-  const messagesEndRef = useRef(null);
+  const messagesScrollRef = useRef(null);
+  const stickToBottomRef = useRef(true);
 
-  // Cuộn xuống tin nhắn mới nhất
-  useEffect(() => {
-    if (!searchOpen) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, searchOpen]);
+  // Run after the loaded messages are rendered, including when switching conversations.
+  useLayoutEffect(() => {
+    if (loadingMessages || searchOpen || !stickToBottomRef.current) return;
+    const element = messagesScrollRef.current;
+    if (!element) return;
+    const toBottom = () => { element.scrollTop = element.scrollHeight; };
+    toBottom();
+    const frame = requestAnimationFrame(toBottom);
+    return () => cancelAnimationFrame(frame);
+  }, [activeConversation?.id, loadingMessages, messages.length, searchOpen]);
 
   useEffect(() => {
+    stickToBottomRef.current = true;
     searchRequestRef.current += 1;
     setSearch('');
     setSearchResults(null);
@@ -49,6 +61,9 @@ export default function ChatWindow({ onOpenAiSummary }) {
     setContactOpen(false);
     setReplyTo(null);
     setInputText('');
+    setNicknameOpen(false);
+    setNicknameMemberId('');
+    setNicknameDraft('');
   }, [activeConversation?.id]);
 
   useEffect(() => {
@@ -112,7 +127,26 @@ export default function ChatWindow({ onOpenAiSummary }) {
   const getHeaderTitle = () => {
     if (activeConversation.type === 'GROUP') return activeConversation.title;
     const other = activeConversation.members?.find((m) => m.id !== user?.id);
-    return other?.fullName || 'Người dùng';
+    return other?.nickname || other?.fullName || 'Người dùng';
+  };
+
+  const memberName = (id, fallback) => activeConversation.members?.find(member => String(member.id) === String(id))?.nickname || fallback;
+  const editNickname = member => {
+    setNicknameMemberId(String(member.id));
+    setNicknameDraft(member.nickname || '');
+    setNicknameOpen(true);
+    setError('');
+  };
+  const saveNickname = async event => {
+    event.preventDefault();
+    setNicknameSaving(true);
+    try {
+      await updateNickname(Number(nicknameMemberId), nicknameDraft.trim());
+      setNicknameOpen(false);
+      setError('');
+    } catch (failure) {
+      setError(failure.response?.data?.message || 'Không đổi được biệt danh.');
+    } finally { setNicknameSaving(false); }
   };
 
   const isOnline = () => {
@@ -253,7 +287,10 @@ export default function ChatWindow({ onOpenAiSummary }) {
       {error && <p role="alert" className="text-xs text-red-600 px-4 py-2">{error}</p>}
 
       {/* Messages List Area */}
-      <div className="chat-messages flex-1 overflow-y-auto p-4 space-y-3" style={wallpaperUrl ? { backgroundImage: `linear-gradient(#ffffff77, #ffffff77), url("${wallpaperUrl}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}>
+      <div ref={messagesScrollRef} className="chat-messages flex-1 overflow-y-auto p-4 space-y-3"
+        onScroll={event => { if (!loadingMessages) { const el = event.currentTarget; stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100; } }}
+        onLoadCapture={() => { const el = messagesScrollRef.current; if (el && stickToBottomRef.current) el.scrollTop = el.scrollHeight; }}
+        style={wallpaperUrl ? { backgroundImage: `linear-gradient(#ffffff77, #ffffff77), url("${wallpaperUrl}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}>
         {searchResults && <p className="chat-results-count" role="status">{searchResults.length} tin nhắn phù hợp</p>}
         {loadingMessages ? (
           <div className="flex items-center justify-center h-full">
@@ -272,6 +309,7 @@ export default function ChatWindow({ onOpenAiSummary }) {
               showSender={activeConversation.type === 'GROUP'}
               themeColor={themeColor}
               currentUserId={user?.id}
+              senderDisplayName={memberName(msg.senderId, msg.senderName)}
               onReply={() => { setReplyTo(msg); setSearchOpen(false); }}
               onReact={async (emoji) => { try { await reactMessage(msg.id, emoji); } catch { setError('Không thể thả cảm xúc.'); } }}
               onEdit={async content => { try { await editMessage(msg.id, content); } catch (e) { setError('Không sửa được tin nhắn'); } }}
@@ -279,7 +317,6 @@ export default function ChatWindow({ onOpenAiSummary }) {
             />
           ))
         )}
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Message Input Box */}
@@ -327,6 +364,17 @@ export default function ChatWindow({ onOpenAiSummary }) {
               Tùy chỉnh đoạn chat {sectionOpen.settings ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
             </button>
             {sectionOpen.settings && <div className="chat-info-options">
+              <button type="button" onClick={() => editNickname(activeConversation.type === 'DIRECT' ? otherMember : activeConversation.members?.find(member => member.id !== user?.id) || activeConversation.members?.[0])}><Pencil size={18} /> Đổi biệt danh</button>
+              {nicknameOpen && <form className="chat-nickname-form" onSubmit={saveNickname}>
+                {activeConversation.type === 'GROUP' && <select value={nicknameMemberId} onChange={event => {
+                  setNicknameMemberId(event.target.value);
+                  setNicknameDraft(activeConversation.members?.find(member => String(member.id) === event.target.value)?.nickname || '');
+                }} aria-label="Chọn thành viên đổi biệt danh">
+                  {activeConversation.members?.map(member => <option key={member.id} value={member.id}>{member.nickname || member.fullName}</option>)}
+                </select>}
+                <input aria-label="Biệt danh trong đoạn chat" maxLength={60} value={nicknameDraft} onChange={event => setNicknameDraft(event.target.value)} placeholder="Để trống để dùng tên thật" />
+                <div><button type="submit" disabled={nicknameSaving}>{nicknameSaving ? 'Đang lưu...' : 'Lưu biệt danh'}</button><button type="button" onClick={() => setNicknameOpen(false)}>Hủy</button></div>
+              </form>}
               <button type="button" onClick={() => setShowThemePicker(true)}><span className="chat-color-swatch" style={{ background: chatTheme.background, color: chatTheme.text }}><Palette size={17} /></span> Đổi màu đoạn chat</button>
               <input ref={wallpaperRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handleWallpaper} aria-label="Chọn ảnh nền cuộc trò chuyện" />
               <button type="button" onClick={() => wallpaperRef.current?.click()}><ImageIcon size={18} /> Đổi ảnh nền từ máy</button>

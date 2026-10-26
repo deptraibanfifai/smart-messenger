@@ -1,6 +1,16 @@
 package com.smartmessenger.service;
 
 import com.smartmessenger.dto.AiChatRequest;
+import com.smartmessenger.dto.AiSummaryRequest;
+import com.smartmessenger.model.Message;
+import com.smartmessenger.model.MessageType;
+import com.smartmessenger.repository.MessageRepository;
+import org.springframework.data.domain.PageImpl;
+import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -104,6 +114,31 @@ class AiServiceTest {
                 () -> service.chatWithAi(question(), 1L));
         assertTrue(error.getReason().contains("GEMINI_DNS"));
         server.verify();
+    }
+
+    @Test
+    void summaryUsesRecentTextInChronologicalOrderAndSkipsAttachments() {
+        MessageRepository repository = mock(MessageRepository.class);
+        ChatService chats = mock(ChatService.class);
+        AiService summaryService = new AiService(repository, chats);
+        ReflectionTestUtils.setField(summaryService, "apiUrl", URL);
+        ReflectionTestUtils.setField(summaryService, "apiKey", "private-test-key");
+        RestTemplate summaryClient = (RestTemplate) ReflectionTestUtils.getField(summaryService, "restTemplate");
+        MockRestServiceServer summaryServer = MockRestServiceServer.createServer(summaryClient);
+        when(repository.findByConversationIdOrderByCreatedAtDesc(eq(7L), any()))
+                .thenReturn(new PageImpl<>(java.util.List.of(
+                        Message.builder().content("tin mới").messageType(MessageType.TEXT).build(),
+                        Message.builder().content("/api/files/1/file.png").messageType(MessageType.IMAGE).build(),
+                        Message.builder().content("tin cũ").messageType(MessageType.TEXT).build())));
+        summaryServer.expect(requestTo(URL))
+                .andExpect(content().string(containsString("tin cũ\\ntin mới")))
+                .andExpect(content().string(not(containsString("file.png"))))
+                .andRespond(withSuccess("{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Tóm tắt\"}]}}]}",
+                        org.springframework.http.MediaType.APPLICATION_JSON));
+        AiSummaryRequest request = new AiSummaryRequest();
+        request.setConversationId(7L);
+        assertEquals("Tóm tắt", summaryService.summarizeConversation(request, 1L).getResponse());
+        summaryServer.verify();
     }
 
 }

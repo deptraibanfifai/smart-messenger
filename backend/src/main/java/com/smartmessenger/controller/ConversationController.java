@@ -55,6 +55,13 @@ public class ConversationController {
         return chatService.renameGroup(id, principal.getId(), body.get("title"));
     }
 
+    @PutMapping("/{id}/members/{memberId}/nickname")
+    public ConversationDto nickname(@PathVariable Long id, @PathVariable Long memberId,
+                                    @RequestBody Map<String, String> body,
+                                    @AuthenticationPrincipal UserDetailsImpl principal) {
+        return chatService.updateNickname(id, principal.getId(), memberId, body.get("nickname"));
+    }
+
     @PostMapping("/{id}/members/{memberId}")
     public ConversationDto add(@PathVariable Long id, @PathVariable Long memberId,
                                @AuthenticationPrincipal UserDetailsImpl principal) {

@@ -15,6 +15,7 @@ public class UserDto {
     private String username;
     private String fullName;
     private String avatarUrl;
+    private String nickname;
     private String role;
     private String status;
     private boolean online;

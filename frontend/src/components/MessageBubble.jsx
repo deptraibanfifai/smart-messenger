@@ -3,7 +3,7 @@ import { Bot, CornerUpLeft, SmilePlus, MoreHorizontal, Pencil, Trash2, FileDown 
 import api from '../services/api';
 import { getChatTheme } from '../utils/chatTheme';
 
-export default function MessageBubble({ message, isMine, showSender, themeColor, currentUserId, onReply, onReact, onEdit, onDelete }) {
+export default function MessageBubble({ message, isMine, showSender, senderDisplayName, themeColor, currentUserId, onReply, onReact, onEdit, onDelete }) {
   const [fileUrl, setFileUrl] = useState(null);
   const [fileError, setFileError] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
@@ -57,7 +57,7 @@ export default function MessageBubble({ message, isMine, showSender, themeColor,
         {!isMine && showSender && (
           <p className="chat-message-sender">
             {isAi && <Bot size={14} />}
-            {message.senderName}
+            {senderDisplayName || message.senderName}
           </p>
         )}
 
