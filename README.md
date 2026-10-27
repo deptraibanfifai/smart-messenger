@@ -56,7 +56,7 @@ cd ~/smart-messenger
 ls backend frontend database
 ```
 
-Nếu đã clone trước đó, dùng thư mục `~/smart-messenger` hiện có; không clone lồng thêm một bản. File `database/init.sql` **đã tạo bảng và thêm 3 tài khoản, 2 tin nhắn mẫu**; không cần tự tạo bảng.
+Nếu đã clone trước đó, dùng thư mục `~/smart-messenger` hiện có; không clone lồng thêm một bản. File `database/init.sql` **đã tạo bảng và thêm 3 tài khoản, 2 tin nhắn mẫu**; không cần tự tạo bảng. Nếu chép mã nguồn từ Windows sang Ubuntu, container và volume MySQL vẫn độc lập với thư mục dự án. Tuy nhiên, cần cài lại `node_modules` trên Ubuntu, build lại frontend cho Nginx và kiểm tra cấu hình chạy IntelliJ; các tệp trong `backend/uploads` có thể mất nếu chép đè thư mục đó.
 
 ## 4. MySQL trong Docker
 
@@ -117,6 +117,26 @@ exit;
 
 Giá trị hex của `sinhvien1` phải bắt đầu bằng `4E677579E1BB85`. Tài khoản demo sau khi sửa: `admin`, `sinhvien1`, `sinhvien2`; cùng mật khẩu `password123`. Chỉ dùng mật khẩu mẫu trong môi trường demo nội bộ.
 
+### Cập nhật database cũ để gửi ảnh và tệp
+
+Với database đã tạo trước khi tính năng gửi ảnh/tệp được thêm vào mã nguồn, `init.sql` không tự chạy lại trên volume đã có dữ liệu. Vào MySQL bằng lệnh ở trên rồi kiểm tra:
+
+```sql
+SHOW COLUMNS FROM messages LIKE 'message_type';
+```
+
+Nếu `Type` chỉ có `TEXT`, `SYSTEM`, `AI`, chạy **một lần**:
+
+```sql
+ALTER TABLE messages
+MODIFY COLUMN message_type ENUM('TEXT', 'SYSTEM', 'AI', 'IMAGE', 'FILE')
+DEFAULT 'TEXT';
+SHOW COLUMNS FROM messages LIKE 'message_type';
+EXIT;
+```
+
+Sau đó phải thấy cả `IMAGE` và `FILE`; có thể thử gửi ảnh lại. Không nạp lại `init.sql` hoặc xóa volume. Bản SQL tương ứng nằm trong `database/migrations/20261022_files_message_type.sql`.
+
 ## 5. Backend Spring Boot
 
 **Cách A: chạy trong IntelliJ IDEA**
@@ -127,7 +147,8 @@ Giá trị hex của `sinhvien1` phải bắt đầu bằng `4E677579E1BB85`. T�
 4. Trong **Run → Edit Configurations → Environment variables**, đặt:
    - `SPRING_DATASOURCE_PASSWORD`: mật khẩu root MySQL đã đặt ở bước 4.
    - `JWT_SECRET`: tạo bằng `openssl rand -base64 32` và dán giá trị vào đây. Giữ nguyên khóa này khi khởi động lại để token đang dùng không bị vô hiệu.
-5. Run và đợi log báo Spring Boot khởi động ở cổng `8080`. Giữ IntelliJ/backend đang chạy khi demo.
+   - `GEMINI_API_KEY`: API key Google AI Studio nếu dùng trợ lý AI; không cần cho chat thông thường.
+5. Nhấn **OK** để lưu cửa sổ Environment Variables và **OK** lần nữa để lưu Run Configuration. **Stop** backend cũ rồi **Run** lại; biến môi trường thêm sau khi ứng dụng khởi động sẽ không tự động vào tiến trình Java đang chạy. Đợi log báo Spring Boot khởi động ở cổng `8080`. Giữ IntelliJ/backend đang chạy khi demo.
 
 **Cách B: chạy bằng terminal**, trong terminal mới:
 
@@ -136,11 +157,14 @@ cd ~/smart-messenger/backend
 read -rsp 'Nhap mat khau MySQL root: ' SPRING_DATASOURCE_PASSWORD
 echo
 export SPRING_DATASOURCE_PASSWORD
-export JWT_SECRET="$(openssl rand -base64 32)"
+read -rsp 'Nhap JWT_SECRET da tao (hoac tao mot lan bang openssl rand -base64 32): ' JWT_SECRET
+echo
+export JWT_SECRET
+# Neu dung tro ly AI: read -rsp 'Nhap GEMINI_API_KEY: ' GEMINI_API_KEY; echo; export GEMINI_API_KEY
 mvn spring-boot:run
 ```
 
-Không đưa mật khẩu MySQL, JWT secret hoặc API key AI vào README hay commit Git. Spring có thể dùng biến môi trường `SPRING_DATASOURCE_PASSWORD` để thay cấu hình mật khẩu trong `application.properties`. Tính năng AI cần Gemini API key riêng hợp lệ; chat, đăng nhập và WebSocket có thể kiểm thử trước. Nếu mở terminal mới để chạy lại backend, cần đặt lại các biến trên; cách A cấu hình trong IntelliJ sẽ tiện hơn.
+Không đưa mật khẩu MySQL, JWT secret hoặc API key AI vào README, ảnh chụp cấu hình hay commit Git. `application.properties` hiện có mật khẩu MySQL mẫu được ghi trực tiếp; khi chạy hãy đặt `SPRING_DATASOURCE_PASSWORD` để ghi đè và thay mật khẩu mẫu trước khi dùng ngoài môi trường demo. Tính năng AI cần Gemini API key riêng hợp lệ; chat, đăng nhập và WebSocket có thể kiểm thử trước. Nếu mở terminal mới để chạy lại backend, cần đặt lại các biến trên; cách A cấu hình trong IntelliJ sẽ tiện hơn.
 
 Kiểm tra cổng backend từ một terminal khác:
 
@@ -152,11 +176,11 @@ sudo ss -ltnp '( sport = :8080 )'
 
 ```bash
 cd ~/smart-messenger/frontend
-npm ci
+npm ci --include=optional
 npm run dev
 ```
 
-Truy cập `http://localhost:5173`. `vite.config.js` proxy `/api` và `/ws` sang `localhost:8080`; backend và MySQL phải chạy. Dùng **Ctrl+C** để tắt Vite. Nếu `npm ci` báo thiếu hoặc không tương thích lockfile, kiểm tra `package-lock.json` rồi dùng `npm install` một lần; nhóm nên giữ lockfile đồng nhất trong Git.
+Truy cập `http://localhost:5173`. `vite.config.js` proxy `/api` và `/ws` sang `localhost:8080`; backend và MySQL phải chạy. Dùng **Ctrl+C** để tắt Vite. Sau khi chép thư mục từ Windows, nếu lỗi `Cannot find module @rollup/rollup-linux-x64-gnu`, chạy `rm -rf node_modules` tại thư mục `frontend` rồi `npm ci --include=optional` ngay trên Ubuntu; **giữ `package-lock.json`**. Nếu `npm ci` báo lockfile không tương thích, kiểm tra lỗi trước khi dùng `npm install`; không dùng `sudo npm`.
 
 ## 7. Đưa frontend lên Nginx ở cổng 80
 
@@ -164,12 +188,13 @@ Tạo bản build và chép file tĩnh đến thư mục web:
 
 ```bash
 cd ~/smart-messenger/frontend
+npm ci --include=optional
 npm run build
 sudo install -d -m 755 /var/www/smart-messenger
 sudo cp -a dist/. /var/www/smart-messenger/
 ```
 
-Nếu build thất bại, đọc lỗi và sửa trước khi tiếp tục. Tạo site Nginx:
+Nếu build thất bại, đọc lỗi và sửa trước khi tiếp tục. Sau mỗi lần thay mã nguồn frontend, cần build và chép lại `dist` vào `/var/www/smart-messenger/`; `npm run dev` ở cổng 5173 không cập nhật bản Nginx cổng 80. Tạo site Nginx:
 
 ```bash
 sudo tee /etc/nginx/sites-available/smart-messenger >/dev/null <<'EOF'
@@ -263,5 +288,10 @@ Các cổng cần nhớ: `80` Nginx; `8080` Spring Boot; `3306` MySQL chỉ loca
 | Frontend hiện nhưng API lỗi | Kiểm tra MySQL, backend, `curl` đăng nhập qua cổng 80 và log Nginx `/var/log/nginx/error.log`. |
 | API được nhưng tin nhắn không đến ngay | Xem DevTools → Network → WS cho `/ws-native`; kiểm tra block `location /ws` và thử đăng nhập bằng hai phiên khác nhau. |
 | `port 3306 already allocated` | Chạy `sudo ss -ltnp '( sport = :3306 )'`, xác định dịch vụ chiếm cổng trước khi tạo container. |
+| `mysql -u root -p` báo `Access denied` | Nhập mật khẩu **MySQL root**, không phải mật khẩu `sudo`. Terminal không hiển thị ký tự khi gõ; nên chuyển bộ gõ sang English. Không xóa container/volume để thử lại. |
+| Gửi ảnh/tệp báo HTTP 500 | Kiểm tra cột `messages.message_type`; nếu thiếu `IMAGE`, `FILE`, chạy migration ở bước 4 một lần. |
+| Chọn ảnh đại diện báo "PNG hoặc JPEG, tối đa 20 MB và 20 triệu điểm ảnh" | Backend kiểm tra nội dung ảnh; thử ảnh PNG/JPEG thật, dưới 20 MB và tích rộng × cao không quá 20 triệu. |
+| AI báo `Chưa có GEMINI_API_KEY` | Đặt `GEMINI_API_KEY` trong **Run Configuration** IntelliJ (hoặc terminal chạy backend), nhấn OK để lưu, Stop/Run backend. Biến trong file `.env` không tự động được Spring Boot đọc. |
+| Nginx `200` nhưng đăng nhập/API không hoạt động | `200` chỉ xác nhận file tĩnh; kiểm tra Java có nghe cổng 8080 và gọi API đăng nhập qua cổng 80 như bước 8. |
 
 **Lưu ý:** README này mô tả bản Java + React ở repository trên. Một dự án SmartMessenger .NET/SQL Server khác sẽ cần hướng dẫn riêng.
