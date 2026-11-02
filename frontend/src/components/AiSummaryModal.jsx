@@ -48,7 +48,7 @@ export default function AiSummaryModal({ conversationId, onClose }) {
             </div>
             <div>
               <h3 className="text-sm font-bold text-slate-800">Tóm tắt cuộc trò chuyện bằng AI</h3>
-              <p className="text-[11px] text-slate-400">Gemini AI tự động trích xuất ý chính và quyết định quan trọng</p>
+              <p className="text-[11px] text-slate-400">AI qua Groq tự động trích xuất ý chính và quyết định quan trọng</p>
             </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg">

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useChat } from '../context/ChatContext';
 import { useAuth } from '../context/AuthContext';
 import MessageBubble from './MessageBubble';
@@ -26,12 +27,15 @@ export default function ChatWindow({ onOpenAiSummary }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [sectionOpen, setSectionOpen] = useState({ settings: true, media: true });
   const [error, setError] = useState('');
+  const [friendStatus, setFriendStatus] = useState(null);
+  const [friendChecking, setFriendChecking] = useState(false);
   const [nicknameOpen, setNicknameOpen] = useState(false);
   const [nicknameMemberId, setNicknameMemberId] = useState('');
   const [nicknameDraft, setNicknameDraft] = useState('');
   const [nicknameSaving, setNicknameSaving] = useState(false);
   const [wallpaperUrl, setWallpaperUrl] = useState(null);
   const fileRef = useRef(null);
+  const inputRef = useRef(null);
   const wallpaperRef = useRef(null);
   const wallpaperUrlRef = useRef(null);
   const searchRef = useRef(null);
@@ -77,6 +81,22 @@ export default function ChatWindow({ onOpenAiSummary }) {
   }, [searchOpen]);
 
   useEffect(() => {
+    const other = activeConversation?.type === 'DIRECT'
+      ? activeConversation.members?.find(member => member.id !== user?.id) : null;
+    if (!other) { setFriendStatus(null); setFriendChecking(false); return; }
+    let alive = true;
+    setFriendStatus(null);
+    setFriendChecking(true);
+    const refreshFriendStatus = () => api.get(`/friends/${other.id}`).then(({ data }) => {
+      if (alive) setFriendStatus(data?.status || 'NONE');
+    }).catch(() => { if (alive) setFriendStatus('NONE'); })
+      .finally(() => { if (alive) setFriendChecking(false); });
+    refreshFriendStatus();
+    const interval = window.setInterval(refreshFriendStatus, 10000);
+    return () => { alive = false; window.clearInterval(interval); };
+  }, [activeConversation?.id, user?.id]);
+
+  useEffect(() => {
     let disposed = false;
     if (wallpaperUrlRef.current) URL.revokeObjectURL(wallpaperUrlRef.current);
     wallpaperUrlRef.current = null;
@@ -109,9 +129,20 @@ export default function ChatWindow({ onOpenAiSummary }) {
     );
   }
 
-  const handleSend = (e) => {
+  const handleSend = async (e) => {
     e.preventDefault();
     if (!inputText.trim()) return;
+    if (activeConversation.type === 'DIRECT') {
+      const other = activeConversation.members?.find(member => member.id !== user?.id);
+      try {
+        const { data } = await api.get(`/friends/${other.id}`);
+        if (data?.status !== 'ACCEPTED') {
+          setFriendStatus(data?.status || 'NONE');
+          setError('Hai người cần kết bạn trước khi nhắn tin.');
+          return;
+        }
+      } catch { setError('Chưa kiểm tra được trạng thái kết bạn. Vui lòng thử lại.'); return; }
+    }
     if (sendMessage(inputText, 'TEXT', replyTo?.id)) {
       setInputText('');
       setReplyTo(null);
@@ -121,7 +152,7 @@ export default function ChatWindow({ onOpenAiSummary }) {
 
   const handleTextChange = (event) => {
     setInputText(event.target.value);
-    typingNotifier.change(event.target.value);
+    if (activeConversation.type !== 'DIRECT' || friendStatus === 'ACCEPTED') typingNotifier.change(event.target.value);
   };
 
   const getHeaderTitle = () => {
@@ -321,14 +352,22 @@ export default function ChatWindow({ onOpenAiSummary }) {
 
       {/* Message Input Box */}
       <div className="chat-composer p-3 shrink-0">
+        {activeConversation.type === 'DIRECT' && friendStatus !== 'ACCEPTED' &&
+          <p className="chat-friend-notice">{friendChecking ? 'Đang kiểm tra quan hệ bạn bè...' : 'Cần kết bạn để tiếp tục nhắn tin riêng.'} <Link to="/">Đến cộng đồng</Link></p>}
         <div className="chat-typing-slot" aria-live="polite" aria-atomic="true">{Object.keys(typingUsers).length > 0 && <div className="chat-typing"><span className="chat-typing-dots" aria-hidden="true"><i /><i /><i /></span><span>{Object.values(typingUsers).map(entry => entry.name).join(', ')} đang nhập...</span></div>}</div>
         {replyTo && <div className="chat-reply-draft"><span>Trả lời {replyTo.senderName}: {replyTo.deleted ? 'Tin nhắn đã xóa' : replyTo.messageType === 'TEXT' ? replyTo.content : 'Ảnh hoặc tệp'}</span><button type="button" onClick={() => setReplyTo(null)} aria-label="Bỏ trả lời"><X size={15} /></button></div>}
         <form onSubmit={handleSend} className="flex items-center space-x-2">
           <input ref={fileRef} type="file" className="hidden" accept="image/png,image/jpeg,image/webp,application/pdf,text/plain" onChange={handleFile} />
-          <button type="button" className="chat-icon-button chat-attach-button" title="Gửi ảnh hoặc tệp" aria-label="Gửi ảnh hoặc tệp" onClick={() => fileRef.current?.click()}><Paperclip className="w-5 h-5" /></button>
+          <button type="button" disabled={activeConversation.type === 'DIRECT' && friendStatus !== 'ACCEPTED'} className="chat-icon-button chat-attach-button" title="Gửi ảnh hoặc tệp" aria-label="Gửi ảnh hoặc tệp" onClick={() => fileRef.current?.click()}><Paperclip className="w-5 h-5" /></button>
+          <button type="button" disabled={activeConversation.type === 'DIRECT' && friendStatus !== 'ACCEPTED'} className="chat-ai-mention-button" title="Nhắc AI trong đoạn chat" aria-label="Nhắc AI trong đoạn chat" onClick={() => {
+            setInputText(text => `${text}${text && !/\s$/.test(text) ? ' ' : ''}@AI `);
+            inputRef.current?.focus();
+          }}>@AI</button>
           <input
+            ref={inputRef}
+            disabled={activeConversation.type === 'DIRECT' && friendStatus !== 'ACCEPTED'}
             type="text"
-            placeholder="Nhập tin nhắn..."
+            placeholder="Nhập tin nhắn hoặc @AI để hỏi..."
             value={inputText}
             onChange={handleTextChange}
             onBlur={() => typingNotifier.stop()}
@@ -336,7 +375,7 @@ export default function ChatWindow({ onOpenAiSummary }) {
           />
           <button
             type="submit"
-            disabled={!inputText.trim()}
+            disabled={!inputText.trim() || (activeConversation.type === 'DIRECT' && friendStatus !== 'ACCEPTED')}
             style={{ background: themeColor === '#0284c7' ? '#514cff' : chatTheme.background, color: themeColor === '#0284c7' ? '#fff' : chatTheme.text }}
             className="p-2.5 text-white rounded-xl hover:opacity-90 disabled:opacity-40 transition shadow-sm"
           >

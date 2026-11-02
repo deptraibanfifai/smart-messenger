@@ -45,19 +45,19 @@ export default function MessageBubble({ message, isMine, showSender, senderDispl
 
   return (
     <div className={`chat-message-row ${isMine ? 'is-mine' : 'is-theirs'}`}>
-      {!isMine && (
+      {!isMine && (isAi ? <span className="chat-message-avatar chat-ai-avatar" aria-hidden="true"><Bot size={18} /></span> : (
         <img
           src={message.senderAvatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=user'}
           alt=""
           className="chat-message-avatar"
         />
-      )}
+      ))}
 
       <div className="chat-message-stack">
-        {!isMine && showSender && (
+        {!isMine && (showSender || isAi) && (
           <p className="chat-message-sender">
             {isAi && <Bot size={14} />}
-            {senderDisplayName || message.senderName}
+            {isAi ? 'AI' : senderDisplayName || message.senderName}
           </p>
         )}
 

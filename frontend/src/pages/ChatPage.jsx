@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import { useChat } from '../context/ChatContext';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 import ChatWindow from '../components/ChatWindow';
@@ -9,6 +11,13 @@ import './ChatGlass.css';
 import './DirectLayout.css';
 
 export default function ChatPage() {
+  const { conversations, setActiveConversation } = useChat();
+  const { search } = useLocation();
+  const requestedId = new URLSearchParams(search).get('conversation');
+  useEffect(() => {
+    const selected = conversations.find(item => String(item.id) === requestedId);
+    if (selected) setActiveConversation(selected);
+  }, [requestedId, conversations, setActiveConversation]);
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [showAiChat, setShowAiChat] = useState(false);
   const [summaryConversationId, setSummaryConversationId] = useState(null);

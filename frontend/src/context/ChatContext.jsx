@@ -64,7 +64,7 @@ export const ChatProvider = ({ children }) => {
         const other = conv?.members?.find((m) => m.id !== user.id);
         try {
           new Notification(conv?.type === 'GROUP' ? conv.title : other?.fullName || message.senderName || 'Tin nhắn mới', {
-            body: message.messageType === 'TEXT' ? message.content.slice(0, 120) : 'Có ảnh hoặc tệp mới',
+            body: ['TEXT', 'AI'].includes(message.messageType) ? message.content.slice(0, 120) : 'Có ảnh hoặc tệp mới',
           });
         } catch (error) { console.debug('Trình duyệt không hiển thị được thông báo', error); }
       }
@@ -270,6 +270,7 @@ export const ChatProvider = ({ children }) => {
       setActiveConversation(conv);
     } catch (err) {
       console.error('Lỗi khi mở đoạn chat:', err);
+      throw err;
     }
   };
 

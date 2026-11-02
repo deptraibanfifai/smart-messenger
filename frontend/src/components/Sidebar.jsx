@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import StatusNotes from './StatusNotes';
 import { Search, Users, MessageCircle, SquarePen } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function Sidebar({ onOpenNewGroup }) {
   const { user } = useAuth();
@@ -11,6 +12,7 @@ export default function Sidebar({ onOpenNewGroup }) {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
 
   const handleSearch = async (e) => {
     const val = e.target.value;
@@ -22,11 +24,16 @@ export default function Sidebar({ onOpenNewGroup }) {
     }
 
     setIsSearching(true);
+    setSearchError('');
     try {
       const res = await api.get(`/users/search?keyword=${encodeURIComponent(val)}`);
-      setSearchResults(res.data);
+      const friendships = await api.get('/friends');
+      const accepted = new Set(friendships.data.filter(item => item.status === 'ACCEPTED').map(item => item.userId));
+      setSearchResults(res.data.filter(item => accepted.has(item.id)));
     } catch (err) {
       console.error(err);
+      setSearchError('Không tải được danh sách bạn bè.');
+      setSearchResults([]);
     }
   };
 
@@ -77,19 +84,22 @@ export default function Sidebar({ onOpenNewGroup }) {
       <div className="chat-conversation-list flex-1 overflow-y-auto">
         {isSearching ? (
           <div>
-            <p className="text-[11px] font-semibold text-slate-400 px-3 py-1.5 uppercase">
-              Kết quả tìm kiếm ({searchResults.length})
-            </p>
+            <p className="text-[11px] font-semibold text-slate-400 px-3 py-1.5 uppercase">Bạn bè ({searchResults.length})</p>
+            {searchError && <p role="alert" className="px-3 text-xs text-rose-600">{searchError}</p>}
             {searchResults.length === 0 ? (
-              <p className="text-xs text-slate-400 text-center py-6">Không tìm thấy người dùng nào</p>
+              <p className="text-xs text-slate-400 text-center py-6">Chưa tìm thấy bạn bè. <Link className="text-indigo-600 underline" to="/">Đến cộng đồng</Link></p>
             ) : (
               searchResults.map((u) => (
                 <button
                   key={u.id}
-                  onClick={() => {
-                    startDirectChat(u.id);
-                    setIsSearching(false);
-                    setSearchKeyword('');
+                  onClick={async () => {
+                    try {
+                      await startDirectChat(u.id);
+                      setIsSearching(false);
+                      setSearchKeyword('');
+                    } catch (failure) {
+                      setSearchError(failure.response?.data?.message || 'Không thể mở đoạn chat.');
+                    }
                   }}
                   className="w-full flex items-center space-x-3 p-2.5 rounded-xl hover:bg-slate-100 transition text-left"
                 >

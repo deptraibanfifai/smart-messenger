@@ -48,7 +48,7 @@ public class ChatRealtimeController {
     public void typing(@Payload Map<String, Object> payload, Principal principal) {
         Long conversationId = Long.valueOf(payload.get("conversationId").toString());
         var user = userRepository.findByUsername(principal.getName()).orElseThrow();
-        chatService.requireMember(conversationId, user.getId());
+        chatService.requireCanSend(conversationId, user.getId());
         messagingTemplate.convertAndSend("/topic/typing/" + conversationId,
                 Map.of("conversationId", conversationId, "userId", user.getId(), "name", user.getFullName() == null ? user.getUsername() : user.getFullName(),
                         "typing", Boolean.TRUE.equals(payload.get("typing"))));

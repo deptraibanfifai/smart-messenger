@@ -8,6 +8,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import com.smartmessenger.model.Role;
+import com.smartmessenger.model.UserStatus;
+import com.smartmessenger.repository.UserRepository;
+import org.springframework.data.domain.PageRequest;
 
 import java.util.List;
 import java.util.Map;
@@ -22,6 +26,15 @@ public class UserController {
     private final UserService userService;
     private final PresenceService presenceService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final UserRepository userRepository;
+
+    @GetMapping("/community")
+    public List<UserDto> community(@AuthenticationPrincipal UserDetailsImpl me,
+                                   @RequestParam(defaultValue = "0") int page) {
+        return userRepository.findByStatusAndRoleAndIdNotOrderByCreatedAtDesc(
+                UserStatus.ACTIVE, Role.ROLE_USER, me.getId(), PageRequest.of(Math.max(0, page), 24))
+                .stream().map(user -> UserDto.fromEntity(user, false)).toList();
+    }
 
     @GetMapping("/notes")
     public List<UserDto> notes() {

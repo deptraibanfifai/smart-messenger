@@ -55,8 +55,8 @@ export default function RegisterPage() {
           <div className="w-14 h-14 bg-gradient-to-tr from-sky-500 to-indigo-600 rounded-2xl flex items-center justify-center text-white mx-auto mb-3 shadow-lg shadow-sky-500/30">
             <MessageSquare className="w-7 h-7" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-800">Tạo tài khoản mới</h1>
-          <p className="text-xs text-slate-500 mt-1">Gia nhập mạng lưới giao tiếp Smart Messenger</p>
+          <h1 className="text-2xl font-bold text-slate-800">Tham gia cộng đồng</h1>
+          <p className="text-xs text-slate-500 mt-1">Tạo tài khoản để kết bạn và trò chuyện trong Smart Messenger</p>
         </div>
 
         {/* Error Alert */}

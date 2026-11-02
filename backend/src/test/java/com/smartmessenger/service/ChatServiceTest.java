@@ -9,6 +9,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -29,6 +30,8 @@ class ChatServiceTest {
     @Mock UserRepository users;
     @Mock PresenceService presence;
     @Mock SimpMessagingTemplate broker;
+    @Mock ApplicationEventPublisher events;
+    @Mock FriendshipService friendships;
     @InjectMocks ChatService service;
 
     private Conversation conversation;
@@ -45,6 +48,9 @@ class ChatServiceTest {
     void rejectsReplyToAnotherConversationBeforeSaving() {
         when(members.existsByConversationIdAndUserId(10L, 1L)).thenReturn(true);
         when(conversations.findById(10L)).thenReturn(Optional.of(conversation));
+        when(members.findByConversationId(10L)).thenReturn(List.of(
+                ConversationMember.builder().user(sender).build(),
+                ConversationMember.builder().user(User.builder().id(2L).build()).build()));
         when(users.findById(1L)).thenReturn(Optional.of(sender));
         when(messages.findById(99L)).thenReturn(Optional.of(Message.builder().id(99L)
                 .conversation(Conversation.builder().id(11L).build()).build()));
@@ -54,6 +60,33 @@ class ChatServiceTest {
         assertEquals(HttpStatus.BAD_REQUEST, error.getStatusCode());
         verify(messages, never()).save(any());
         verifyNoInteractions(broker);
+    }
+
+    @Test
+    void cannotCreateDirectChatWithoutAcceptedFriendship() {
+        when(users.findById(2L)).thenReturn(Optional.of(User.builder().id(2L)
+                .status(UserStatus.ACTIVE).build()));
+        doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "Cần kết bạn"))
+                .when(friendships).requireFriends(1L, 2L);
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+                () -> service.getOrCreateDirectConversation(1L, 2L));
+        assertEquals(HttpStatus.FORBIDDEN, error.getStatusCode());
+        verify(conversations, never()).findDirectConversation(anyLong(), anyLong());
+    }
+
+    @Test
+    void existingDirectChatCannotSendAfterFriendshipEnds() {
+        when(members.existsByConversationIdAndUserId(10L, 1L)).thenReturn(true);
+        when(conversations.findById(10L)).thenReturn(Optional.of(conversation));
+        when(members.findByConversationId(10L)).thenReturn(List.of(
+                ConversationMember.builder().user(sender).build(),
+                ConversationMember.builder().user(User.builder().id(2L).build()).build()));
+        doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "Cần kết bạn"))
+                .when(friendships).requireFriends(1L, 2L);
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+                () -> service.saveAndBroadcastMessage(10L, 1L, "Chào", MessageType.TEXT));
+        assertEquals(HttpStatus.FORBIDDEN, error.getStatusCode());
+        verify(messages, never()).save(any());
     }
 
     @Test
@@ -101,5 +134,13 @@ class ChatServiceTest {
                 .getMembers().get(0).getNickname());
         assertNull(service.updateNickname(10L, 1L, 1L, "").getMembers().get(0).getNickname());
         verify(members, times(2)).save(member);
+    }
+
+    @Test
+    void mentionDetectionRequiresAnActualAiMention() {
+        assertTrue(AiMentionService.hasMention("@AI giải thích giúp"));
+        assertTrue(AiMentionService.hasMention("Nhờ @ai nhé"));
+        assertFalse(AiMentionService.hasMention("email@ai.com"));
+        assertFalse(AiMentionService.hasMention("Xin chào"));
     }
 }

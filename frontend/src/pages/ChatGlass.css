@@ -210,3 +210,8 @@
   .messenger-glass .chat-header { min-height: 68px; }
   .messenger-glass .chat-info-top { min-height: 68px; }
 }
+.chat-ai-mention-button { flex-shrink: 0; border: 1px solid #bba7f0; border-radius: 14px; padding: 7px 10px; background: #f0e9ff; color: #6843a8; font-weight: 700; cursor: pointer; }
+.chat-ai-mention-button:hover, .chat-ai-mention-button:focus-visible { background: #e6d9ff; outline: 2px solid #bba7f0; outline-offset: 1px; }
+.chat-ai-avatar { display: grid; place-items: center; background: linear-gradient(135deg, #a18cd1, #fbc2eb); color: #513977; }
+.chat-friend-notice { margin: 0 0 8px; padding: 9px 12px; border-radius: 12px; color: #75436d; background: #fff0fa; font-size: 12px; }
+.chat-friend-notice a { text-decoration: underline; font-weight: 700; color: #7b45a7; }

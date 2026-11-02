@@ -11,6 +11,7 @@ import com.smartmessenger.repository.MessageRepository;
 import com.smartmessenger.repository.MessageReactionRepository;
 import com.smartmessenger.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -39,10 +40,28 @@ public class ChatService {
     private final UserRepository userRepository;
     private final PresenceService presenceService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final ApplicationEventPublisher events;
+    private final FriendshipService friendships;
 
     public void requireMember(Long conversationId, Long userId) {
         if (!memberRepository.existsByConversationIdAndUserId(conversationId, userId))
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bạn không thuộc cuộc trò chuyện này");
+    }
+
+    // Existing history stays readable; sending into a direct chat requires an accepted friendship.
+    public void requireCanSend(Long conversationId, Long userId) {
+        requireMember(conversationId, userId);
+        Conversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        if (conversation.getType() == ConversationType.DIRECT) {
+            List<ConversationMember> participants = memberRepository.findByConversationId(conversationId);
+            if (participants.size() != 2)
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Đoạn chat riêng không hợp lệ");
+            Long otherId = participants.stream().map(member -> member.getUser().getId())
+                    .filter(id -> !id.equals(userId)).findFirst()
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN));
+            friendships.requireFriends(userId, otherId);
+        }
     }
 
     private Conversation requireOwner(Long conversationId, Long userId) {
@@ -135,6 +154,7 @@ public class ChatService {
         }
         if (!userRepository.findById(targetUserId).map(u -> u.getStatus() == UserStatus.ACTIVE).orElse(false))
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tài khoản đích không khả dụng");
+        friendships.requireFriends(currentUserId, targetUserId);
 
         return conversationRepository.findDirectConversation(currentUserId, targetUserId)
                 .map(conv -> mapToConversationDto(conv, currentUserId))
@@ -234,7 +254,7 @@ public class ChatService {
 
     @Transactional
     public ChatMessageDto saveAndBroadcastMessage(Long conversationId, Long senderId, String content, MessageType type, Long replyToId) {
-        requireMember(conversationId, senderId);
+        requireCanSend(conversationId, senderId);
         if (content == null || content.isBlank() || content.length() > 4000)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nội dung phải có 1–4000 ký tự");
         if (type != MessageType.TEXT && type != MessageType.IMAGE && type != MessageType.FILE)
@@ -271,8 +291,32 @@ public class ChatService {
                     messagingTemplate.convertAndSendToUser(member.getUser().getUsername(), "/queue/chat-events", dto);
                 }
             }
+            if (type == MessageType.TEXT && AiMentionService.hasMention(content))
+                events.publishEvent(new AiMentionRequested(conversationId, senderId, dto.getId(), content));
         });
 
+        return dto;
+    }
+
+    @Transactional
+    public ChatMessageDto saveAiReply(Long conversationId, Long replyToId, String content) {
+        Conversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        Message original = messageRepository.findById(replyToId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        if (!original.getConversation().getId().equals(conversationId) || original.isDeleted())
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
+        Message message = messageRepository.save(Message.builder().conversation(conversation)
+                .replyTo(original).content(content.substring(0, Math.min(content.length(), 4000)))
+                .messageType(MessageType.AI).build());
+        ChatMessageDto dto = toDto(message);
+        List<String> usernames = memberRepository.findByConversationId(conversationId).stream()
+                .map(member -> member.getUser().getUsername()).toList();
+        afterCommit(() -> {
+            messagingTemplate.convertAndSend("/topic/conversation/" + conversationId, dto);
+            for (String username : usernames)
+                messagingTemplate.convertAndSendToUser(username, "/queue/chat-events", dto);
+        });
         return dto;
     }
 

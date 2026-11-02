@@ -30,7 +30,7 @@ public class FileController {
     @PostMapping(value = "/{conversationId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ChatMessageDto upload(@PathVariable Long conversationId, @RequestParam("file") MultipartFile file,
                                  @AuthenticationPrincipal UserDetailsImpl principal) throws IOException {
-        chatService.requireMember(conversationId, principal.getId());
+        chatService.requireCanSend(conversationId, principal.getId());
         String contentType = file.getContentType();
         if (file.isEmpty() || file.getSize() > 20L * 1024 * 1024 || contentType == null || !TYPES.contains(contentType))
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tệp phải là PNG/JPEG/WebP/PDF/TXT, tối đa 20 MB");

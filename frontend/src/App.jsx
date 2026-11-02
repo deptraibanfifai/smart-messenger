@@ -6,6 +6,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ChatPage from './pages/ChatPage';
 import AdminPage from './pages/AdminPage';
+import CommunityPage from './pages/CommunityPage';
 
 const ProtectedRoute = ({ children, role }) => {
   const { user } = useAuth();
@@ -25,6 +26,14 @@ export default function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route
             path="/"
+            element={
+              <ProtectedRoute role="ROLE_USER">
+                <CommunityPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/chat"
             element={
               <ProtectedRoute role="ROLE_USER">
                 <ChatProvider>

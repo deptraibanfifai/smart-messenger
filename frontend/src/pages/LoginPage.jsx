@@ -48,8 +48,8 @@ export default function LoginPage() {
           <div className="w-14 h-14 bg-gradient-to-tr from-sky-500 to-indigo-600 rounded-2xl flex items-center justify-center text-white mx-auto mb-3 shadow-lg shadow-sky-500/30">
             <MessageSquare className="w-7 h-7" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-800">Smart Messenger</h1>
-          <p className="text-xs text-slate-500 mt-1">Đăng nhập để kết nối Realtime &amp; Dịch vụ AI</p>
+          <h1 className="text-2xl font-bold text-slate-800">Smart Messenger Community</h1>
+          <p className="text-xs text-slate-500 mt-1">Đăng nhập để khám phá cộng đồng và gặp gỡ bạn mới</p>
         </div>
 
         {/* Error Alert */}

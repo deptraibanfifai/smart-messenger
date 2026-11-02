@@ -85,7 +85,7 @@ export default function AiChatModal({ onClose }) {
       <section ref={dialogRef} className="ai-chat-dialog" role="dialog" aria-modal="true" aria-label="Trợ lý Thông minh AI">
         <header className="ai-chat-heading">
           <span className="ai-chat-logo"><Bot size={24} /></span>
-          <div><h2>Trợ lý Thông minh AI <span>Gemini</span></h2><p>Hỏi đáp và hỗ trợ cùng Smart Messenger</p></div>
+          <div><h2>Trợ lý Thông minh AI <span>Groq</span></h2><p>Hỏi đáp và hỗ trợ cùng Smart Messenger</p></div>
           <button type="button" className="ai-chat-close" onClick={onClose} aria-label="Đóng trợ lý AI"><X size={22} /></button>
         </header>
         <div className="ai-chat-messages" role="log" aria-label="Cuộc trò chuyện với AI" aria-live="polite" aria-relevant="additions text">

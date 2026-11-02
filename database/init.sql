@@ -38,6 +38,60 @@ CREATE TABLE IF NOT EXISTS pending_registrations (
     expires_at TIMESTAMP NOT NULL
 );
 
+-- Một cặp chỉ có một trạng thái quan hệ. Hai ID được lưu theo thứ tự tăng dần.
+CREATE TABLE IF NOT EXISTS friendships (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_low_id BIGINT NOT NULL,
+    user_high_id BIGINT NOT NULL,
+    initiated_by_id BIGINT NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    CONSTRAINT uq_friendship_pair UNIQUE (user_low_id, user_high_id),
+    FOREIGN KEY (user_low_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_high_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (initiated_by_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Bảng tin chung. Bình luận và lượt thích thuộc một bài viết.
+CREATE TABLE IF NOT EXISTS meeting_profiles (
+    user_id BIGINT PRIMARY KEY,
+    bio VARCHAR(300),
+    interests VARCHAR(300),
+    opening_question VARCHAR(160),
+    is_visible BOOLEAN NOT NULL DEFAULT FALSE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS community_posts (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    author_id BIGINT NOT NULL,
+    content TEXT NOT NULL,
+    created_at DATETIME NOT NULL,
+    INDEX idx_community_post_time (created_at),
+    FOREIGN KEY (author_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS community_comments (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    post_id BIGINT NOT NULL,
+    author_id BIGINT NOT NULL,
+    content VARCHAR(500) NOT NULL,
+    created_at DATETIME NOT NULL,
+    INDEX idx_community_comment_post (post_id, created_at),
+    FOREIGN KEY (post_id) REFERENCES community_posts(id) ON DELETE CASCADE,
+    FOREIGN KEY (author_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS community_likes (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    post_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    UNIQUE KEY uq_community_like (post_id, user_id),
+    FOREIGN KEY (post_id) REFERENCES community_posts(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
 -- 2. BẢNG CONVERSATIONS (Cuộc trò chuyện 1-1 hoặc Nhóm)
 CREATE TABLE IF NOT EXISTS conversations (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,

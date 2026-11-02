@@ -37,7 +37,8 @@ public class ChatMessageDto {
                 .id(message.getId())
                 .conversationId(message.getConversation().getId())
                 .senderId(message.getSender() != null ? message.getSender().getId() : null)
-                .senderName(message.getSender() != null ? message.getSender().getFullName() : "Hệ thống / AI")
+                .senderName(message.getSender() != null ? message.getSender().getFullName()
+                        : message.getMessageType() == MessageType.AI ? "AI" : "Hệ thống")
                 .senderAvatar(message.getSender() != null ? message.getSender().getAvatarUrl() : "https://api.dicebear.com/7.x/bottts/svg?seed=ai")
                 .content(message.getContent())
                 .messageType(message.getMessageType())
@@ -50,8 +51,10 @@ public class ChatMessageDto {
                         ? "Tin nhắn đã bị xóa" : message.getReplyTo().getMessageType() == MessageType.IMAGE
                         ? "Ảnh" : message.getReplyTo().getMessageType() == MessageType.FILE
                         ? "Tệp" : message.getReplyTo().getContent())
-                .replySenderName(message.getReplyTo() != null && message.getReplyTo().getSender() != null
-                        ? message.getReplyTo().getSender().getFullName() : null)
+                .replySenderName(message.getReplyTo() != null
+                        ? message.getReplyTo().getSender() != null
+                        ? message.getReplyTo().getSender().getFullName()
+                        : message.getReplyTo().getMessageType() == MessageType.AI ? "AI" : "Hệ thống" : null)
                 .build();
     }
 }

@@ -3,7 +3,7 @@
 ## Chạy thử
 
 - Cần JDK 17, Maven, Node.js và MySQL. Chạy `mvn spring-boot:run` trong `backend` và `npm install && npm run dev` trong `frontend`.
-- Thiết lập `DB_PASSWORD`, `JWT_SECRET` (chuỗi Base64 của ít nhất 32 byte ngẫu nhiên), `GEMINI_API_KEY` trước khi chạy backend. Có thể đặt `UPLOAD_DIR` để đổi chỗ lưu tệp, `GEMINI_API_URL` để đổi model/API endpoint.
+- Thiết lập `DB_PASSWORD`, `JWT_SECRET` (chuỗi Base64 của ít nhất 32 byte ngẫu nhiên), `GROQ_API_KEY` trước khi chạy backend. Có thể đặt `UPLOAD_DIR` để đổi chỗ lưu tệp, `GROQ_API_URL` để đổi model/API endpoint.
 - Nếu triển khai ngoài localhost, thiết lập `APP_WEBSOCKET_ALLOWED_ORIGINS` theo origin frontend. Cấu hình CORS HTTP tương ứng trong `CorsConfig`.
 - Backend dùng Hibernate `ddl-auto=update` cho ba cột mới trong `messages`: `edited_at`, `read_at`, `deleted`. Sao lưu cơ sở dữ liệu trước khi chạy migration trên dữ liệu thật.
 - Tệp được lưu trong thư mục `uploads` và chỉ thành viên cuộc trò chuyện lấy được qua JWT. Sao lưu thư mục này cùng database.
@@ -21,4 +21,4 @@
 
 - Trạng thái `readAt` biểu thị đã có một thành viên khác đọc; với nhóm nhiều người, hệ thống chưa lưu trạng thái riêng cho từng thành viên.
 - Tệp đã tải lên không tự xóa khỏi ổ đĩa khi xóa tin nhắn; cần tác vụ dọn dẹp theo chính sách lưu trữ.
-- Không có kết nối MySQL/Gemini trong môi trường chuẩn bị bản cập nhật này; cần kiểm tra tích hợp sau khi cấu hình.
+- Không có kết nối MySQL/Groq trong môi trường chuẩn bị bản cập nhật này; cần kiểm tra tích hợp sau khi cấu hình.
